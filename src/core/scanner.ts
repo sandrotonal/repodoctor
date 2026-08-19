@@ -1,7 +1,11 @@
 import { resolve } from "node:path";
-import type { Diagnostic, PackageManagerDetection, ProjectFacts, ScanResult } from "./types.js";
+import type { Diagnostic, PackageJsonResult, PackageManagerDetection, ProjectFacts, ScanResult } from "./types.js";
 import { detectPackageManager } from "../detectors/package-manager.js";
+import { readPackageJson } from "../detectors/package-json.js";
 import { detectProjectFiles, directoryExists } from "../detectors/project.js";
+import { checkNodeProject } from "../checks/node.js";
+import { checkNodeVersion } from "../checks/node-version.js";
+import { checkPackageJson } from "../checks/package-json.js";
 
 export async function scanProject(root: string): Promise<ScanResult> {
   const absoluteRoot = resolve(root);
@@ -17,6 +21,7 @@ export async function scanProject(root: string): Promise<ScanResult> {
       envExampleExists: false,
       envFiles: [],
       packageManager: { manager: null, lockFiles: [], ambiguous: false },
+      packageJson: { exists: false, content: null, parseError: null },
       diagnostics: [
         {
           id: "project.directory-missing",
@@ -29,22 +34,32 @@ export async function scanProject(root: string): Promise<ScanResult> {
     };
   }
 
-  const [files, packageManager] = await Promise.all([detectProjectFiles(absoluteRoot), detectPackageManager(absoluteRoot)]);
-  const diagnostics = buildDiagnostics(absoluteRoot, files, packageManager);
+  const [files, packageManager, packageJson] = await Promise.all([
+    detectProjectFiles(absoluteRoot),
+    detectPackageManager(absoluteRoot),
+    readPackageJson(absoluteRoot),
+  ]);
+
+  const diagnostics = buildDiagnostics({ root: absoluteRoot, files, packageManager, packageJson });
 
   return {
     root: absoluteRoot,
     ...files,
     packageManager,
+    packageJson,
     diagnostics,
   };
 }
 
-function buildDiagnostics(
-  root: string,
-  files: ProjectFacts,
-  packageManager: PackageManagerDetection,
-): Diagnostic[] {
+interface BuildContext {
+  root: string;
+  files: ProjectFacts;
+  packageManager: PackageManagerDetection;
+  packageJson: PackageJsonResult;
+}
+
+function buildDiagnostics(ctx: BuildContext): Diagnostic[] {
+  const { root, files, packageManager, packageJson } = ctx;
   const diagnostics: Diagnostic[] = [
     {
       id: "project.directory",
@@ -100,6 +115,10 @@ function buildDiagnostics(
   if (files.envExampleExists) {
     diagnostics.push({ id: "project.env-example", severity: "success", title: ".env.example detected" });
   }
+
+  diagnostics.push(...checkNodeProject(files.packageJsonExists));
+  diagnostics.push(...checkPackageJson(packageJson.content, packageJson.parseError, packageManager));
+  diagnostics.push(...checkNodeVersion(process.version, packageJson.content));
 
   return diagnostics;
 }

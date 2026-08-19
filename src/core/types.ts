@@ -16,6 +16,23 @@ export interface PackageManagerDetection {
   ambiguous: boolean;
 }
 
+export interface PackageJsonData {
+  name?: string;
+  version?: string;
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  engines?: { node?: string; [key: string]: unknown };
+  packageManager?: string;
+  [key: string]: unknown;
+}
+
+export interface PackageJsonResult {
+  exists: boolean;
+  content: PackageJsonData | null;
+  parseError: string | null;
+}
+
 export interface ProjectFacts {
   projectDetected: boolean;
   packageJsonExists: boolean;
@@ -29,5 +46,6 @@ export interface ProjectFacts {
 export interface ScanResult extends ProjectFacts {
   root: string;
   packageManager: PackageManagerDetection;
+  packageJson: PackageJsonResult;
   diagnostics: Diagnostic[];
 }

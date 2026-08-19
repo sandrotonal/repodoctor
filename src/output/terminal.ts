@@ -9,6 +9,12 @@ export function renderScan(result: ScanResult): void {
 
   for (const diagnostic of result.diagnostics) {
     console.log(renderDiagnostic(diagnostic));
+    if (diagnostic.message) {
+      console.log(chalk.dim(`  ${diagnostic.message}`));
+    }
+    if (diagnostic.recommendation) {
+      console.log(chalk.dim(`  → ${diagnostic.recommendation}`));
+    }
   }
 
   console.log("");

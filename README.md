@@ -28,8 +28,8 @@ v0.1.0 — TypeScript CLI bootstrap. Detectors are implemented incrementally (se
 
 - [x] CLI bootstrap
 - [x] Project scanner
-- [ ] Package manager detection
-- [ ] Node.js version checks
+- [x] Package manager detection
+- [x] Node.js version checks
 - [ ] Dependency checks
 - [ ] Environment checks
 - [ ] Git diagnostics

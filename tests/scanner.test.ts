@@ -94,7 +94,7 @@ describe("project scan", () => {
       expect(ids).toContain("project.package-manager");
       expect(ids).toContain("project.node-modules");
       expect(ids).toContain("project.env-example");
-      expect(result.diagnostics.every((d) => d.severity === "success")).toBe(true);
+      expect(result.diagnostics.every((d) => d.severity === "success" || d.severity === "info")).toBe(true);
     } finally {
       await removeFixture(root);
     }
