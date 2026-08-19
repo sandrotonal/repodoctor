@@ -23,8 +23,13 @@ import { checkPortConflicts } from "../checks/port-conflict.js";
 import { checkDependencyUsage } from "../checks/dependency-usage.js";
 import { computeHealthScore } from "./score.js";
 
-export async function scanProject(root: string): Promise<ScanResult> {
+export interface ScanOptions {
+  onProgress?: (label: string) => void;
+}
+
+export async function scanProject(root: string, options: ScanOptions = {}): Promise<ScanResult> {
   const absoluteRoot = resolve(root);
+  const { onProgress } = options;
 
   if (!(await directoryExists(absoluteRoot))) {
     const diagnostics: Diagnostic[] = [
@@ -53,17 +58,19 @@ export async function scanProject(root: string): Promise<ScanResult> {
   }
 
   const [files, packageManager, packageJson, envState] = await Promise.all([
-    detectProjectFiles(absoluteRoot),
-    detectPackageManager(absoluteRoot),
-    readPackageJson(absoluteRoot),
-    readEnvState(absoluteRoot),
+    track(detectProjectFiles(absoluteRoot), "Detecting project structure", onProgress),
+    track(detectPackageManager(absoluteRoot), "Detecting package manager", onProgress),
+    track(readPackageJson(absoluteRoot), "Reading package.json", onProgress),
+    track(readEnvState(absoluteRoot), "Checking environment variables", onProgress),
   ]);
 
-  const npmLock = packageManager.manager === "npm" ? await readNpmLock(absoluteRoot) : null;
-  const git = files.gitRepo ? await readGitState(absoluteRoot) : null;
-  const ports = await detectPorts(absoluteRoot, packageJson.content);
-  const imports = await scanImports(absoluteRoot);
+  const npmLock =
+    packageManager.manager === "npm" ? await track(readNpmLock(absoluteRoot), "Reading npm lock file", onProgress) : null;
+  const git = files.gitRepo ? await track(readGitState(absoluteRoot), "Inspecting git state", onProgress) : null;
+  const ports = await track(detectPorts(absoluteRoot, packageJson.content), "Checking configured ports", onProgress);
+  const imports = await track(scanImports(absoluteRoot), "Scanning source imports", onProgress);
 
+  onProgress?.("Evaluating diagnostics");
   const diagnostics = await buildDiagnostics({
     root: absoluteRoot,
     files,
@@ -97,6 +104,12 @@ interface BuildContext {
   git: GitState | null;
   ports: PortSource[];
   imports: ImportScan;
+}
+
+async function track<T>(promise: Promise<T>, label: string, onProgress?: (label: string) => void): Promise<T> {
+  const value = await promise;
+  onProgress?.(label);
+  return value;
 }
 
 async function buildDiagnostics(ctx: BuildContext): Promise<Diagnostic[]> {

@@ -39,6 +39,14 @@ describe("repodoctor CLI", () => {
     expect(stdout).toContain("Scanning project...");
   });
 
+  it("renders the panel style without animation in non-TTY mode", async () => {
+    const { stdout, code } = await runCli(["--style", "panel"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("╔");
+    expect(stdout).toContain("R E P O D O C T O R");
+    expect(stdout).toContain("Health");
+  });
+
   it("outputs valid JSON and a health score with --json", async () => {
     const { stdout, code } = await runCli(["--json"]);
     expect(code).toBe(0);
