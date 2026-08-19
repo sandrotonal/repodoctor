@@ -14,8 +14,8 @@
     "url": "https://github.com/sandrotonal/repodoctor/issues"
   },
   "packageManager": "npm@11.3.0",
-  "engines": {
-    "node": ">=18"
+  "bin": {
+    "repodoctor": "dist/index.js"
   },
   "files": [
     "dist"
