@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="assets/repodoctor-logo.svg" alt="RepoDoctor logo" width="180">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/Node.js-339933.svg?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js">
   <img src="https://img.shields.io/badge/CLI-Commander-000000.svg?style=for-the-badge&logo=gnubash&logoColor=white" alt="Commander">
@@ -11,7 +15,7 @@
   <img src="https://img.shields.io/github/stars/sandrotonal/repodoctor?style=for-the-badge&logo=github&color=FFD54F" alt="Stars">
   <img src="https://img.shields.io/github/package-json/v/sandrotonal/repodoctor?style=for-the-badge&logo=npm&color=CB3837" alt="Version">
   <img src="https://img.shields.io/github/license/sandrotonal/repodoctor?style=for-the-badge&logo=opensourceinitiative&color=8A2BE2" alt="License">
-  <img src="https://img.shields.io/badge/tests-84%20passed-2EA44F?style=for-the-badge&logo=vitest&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-94%20passed-2EA44F?style=for-the-badge&logo=vitest&logoColor=white" alt="Tests">
 </p>
 
 # RepoDoctor
@@ -43,10 +47,16 @@ npx repodoctor
 ```bash
 repodoctor                      # analyze the current directory
 repodoctor ./path/to/project    # analyze a specific directory
+repodoctor --style panel        # rich panel output (boxes, gradient, health bar)
+repodoctor --style plain        # classic compact output
 repodoctor --json               # machine-readable JSON output on stdout
 repodoctor --ci                 # non-zero exit on warnings or worse
 repodoctor --fix                # apply safe automatic fixes (e.g. gitignore .env)
 ```
+
+Output style is `auto` by default: **panel** in an interactive terminal (with a live
+scan animation) and **plain** for CI/pipelines. Override it with `--style`
+or the `REPODOCTOR_STYLE` environment variable (`plain` | `panel` | `auto`).
 
 Exit code is `1` when a **critical** issue is found; `--ci` additionally exits `1` on warnings — perfect for CI pipelines.
 
@@ -74,6 +84,7 @@ npm test            # build + vitest
 - [x] CI mode
 - [x] Automatic fixes
 - [x] Unused / undeclared dependency analysis
+- [x] Rich terminal UI — panel style with scan animation, gradient wordmark and health bar
 
 ## Note
 
