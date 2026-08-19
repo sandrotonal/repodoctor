@@ -2,7 +2,7 @@ import chalk from "chalk";
 import type { Diagnostic, HealthGrade, ScanResult } from "../core/types.js";
 
 export function renderScan(result: ScanResult): void {
-  console.log(chalk.cyan("🩺 RepoDoctor"));
+  console.log(chalk.cyan("RepoDoctor"));
   console.log("");
   console.log("Scanning project...");
   console.log("");
@@ -13,7 +13,7 @@ export function renderScan(result: ScanResult): void {
       console.log(chalk.dim(`  ${diagnostic.message}`));
     }
     if (diagnostic.recommendation) {
-      console.log(chalk.dim(`  → ${diagnostic.recommendation}`));
+      console.log(chalk.dim(`  -> ${diagnostic.recommendation}`));
     }
   }
 
@@ -25,13 +25,13 @@ export function renderScan(result: ScanResult): void {
 function renderDiagnostic(diagnostic: Diagnostic): string {
   switch (diagnostic.severity) {
     case "success":
-      return `${chalk.green("✓")} ${diagnostic.title}`;
+      return `${chalk.green("[OK]")} ${diagnostic.title}`;
     case "warning":
-      return `${chalk.yellow("⚠")} ${diagnostic.title}`;
+      return `${chalk.yellow("[WARN]")} ${diagnostic.title}`;
     case "info":
-      return `${chalk.blue("ℹ")} ${diagnostic.title}`;
+      return `${chalk.blue("[INFO]")} ${diagnostic.title}`;
     case "critical":
-      return `${chalk.red("✗")} ${diagnostic.title}`;
+      return `${chalk.red("[FAIL]")} ${diagnostic.title}`;
   }
 }
 

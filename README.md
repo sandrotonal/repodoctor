@@ -14,31 +14,31 @@
   <img src="https://img.shields.io/badge/tests-84%20passed-2EA44F?style=for-the-badge&logo=vitest&logoColor=white" alt="Tests">
 </p>
 
-# 🩺 RepoDoctor
+# RepoDoctor
 
 **Diagnose your project before you waste time debugging it.**
 
 RepoDoctor is a **local-first** CLI tool that scans a repository and reports why it may fail to install, start, build, or run correctly. Your code **never leaves your machine**.
 
-## ✨ Features
+## Features
 
 | Area | What it detects |
 | --- | --- |
-| ⚙️ **Tooling** | Project files, package managers (`npm` / `yarn` / `pnpm` / `bun`), ambiguous or mismatched lock files |
-| 🟢 **Node.js** | Runtime vs `engines.node`, invalid semver ranges, script & dependency overview |
-| 📦 **Dependencies** | Missing `node_modules` or lock file, npm lock file out of sync, **unused** and **undeclared** packages via an import scan |
-| 🔐 **Environment** | `.env` vs `.env.example` key mismatches, `.env` not gitignored — values are **never** printed or exported |
-| 🌿 **Git** | Branch, detached HEAD, uncommitted & untracked changes |
-| 🔌 **Ports** | Live conflict checks for declared ports (`PORT` in env files, `config.port` in `package.json`) |
-| 💚 **Health score** | A 0–100 score with an `EXCELLENT → CRITICAL` grade |
+| **Tooling** | Project files, package managers (`npm` / `yarn` / `pnpm` / `bun`), ambiguous or mismatched lock files |
+| **Node.js** | Runtime vs `engines.node`, invalid semver ranges, script & dependency overview |
+| **Dependencies** | Missing `node_modules` or lock file, npm lock file out of sync, **unused** and **undeclared** packages via an import scan |
+| **Environment** | `.env` vs `.env.example` key mismatches, `.env` not gitignored — values are **never** printed or exported |
+| **Git** | Branch, detached HEAD, uncommitted & untracked changes |
+| **Ports** | Live conflict checks for declared ports (`PORT` in env files, `config.port` in `package.json`) |
+| **Health score** | A 0–100 score with an `EXCELLENT to CRITICAL` grade |
 
-## 🚀 Quick start
+## Quick start
 
 ```bash
 npx repodoctor
 ```
 
-## 📖 Usage
+## Usage
 
 ```bash
 repodoctor                      # analyze the current directory
@@ -50,7 +50,7 @@ repodoctor --fix                # apply safe automatic fixes (e.g. gitignore .en
 
 Exit code is `1` when a **critical** issue is found; `--ci` additionally exits `1` on warnings — perfect for CI pipelines.
 
-## 🛠️ Development
+## Development
 
 ```bash
 npm install
@@ -59,7 +59,7 @@ npm run build       # tsup → dist/index.js
 npm test            # build + vitest
 ```
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [x] CLI bootstrap
 - [x] Project scanner
@@ -75,7 +75,7 @@ npm test            # build + vitest
 - [x] Automatic fixes
 - [x] Unused / undeclared dependency analysis
 
-## ⚠️ Note
+## Note
 
 The unused/undeclared dependency analysis is heuristic — it scans your source files for
 import specifiers and cross-checks `package.json`. Always verify flagged packages before removing them.
@@ -83,11 +83,11 @@ import specifiers and cross-checks `package.json`. Always verify flagged package
 ---
 
 <p align="center">
-  Made with ❤️ by <a href="https://gucluyumhe.dev/"><strong>gucluyumhe.dev</strong></a>
+  Made by <a href="https://gucluyumhe.dev/"><strong>gucluyumhe.dev</strong></a>
   <br>
   <sub>Diagnose → Fix → Ship → <a href="https://gucluyumhe.dev/">Repeat</a></sub>
 </p>
 
-## 📄 License
+## License
 
 MIT

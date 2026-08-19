@@ -35,7 +35,7 @@ describe("repodoctor CLI", () => {
   it("prints the banner when run without arguments", async () => {
     const { stdout, code } = await runCli([]);
     expect(code).toBe(0);
-    expect(stdout).toContain("🩺 RepoDoctor");
+    expect(stdout).toContain("RepoDoctor");
     expect(stdout).toContain("Scanning project...");
   });
 
