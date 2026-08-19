@@ -4,6 +4,15 @@
   "description": "Diagnose your project before you waste time debugging it.",
   "type": "module",
   "license": "MIT",
+  "author": "Ömer Özbay (https://gucluyumhe.dev/)",
+  "homepage": "https://gucluyumhe.dev/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sandrotonal/repodoctor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sandrotonal/repodoctor/issues"
+  },
   "packageManager": "npm@11.3.0",
   "engines": {
     "node": ">=18"

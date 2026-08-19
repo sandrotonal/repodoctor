@@ -1,16 +1,44 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Node.js-339933.svg?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js">
+  <img src="https://img.shields.io/badge/CLI-Commander-000000.svg?style=for-the-badge&logo=gnubash&logoColor=white" alt="Commander">
+  <img src="https://img.shields.io/badge/Output-Chalk-f5f5f5.svg?style=for-the-badge&logo=chalk&logoColor=black" alt="Chalk">
+  <img src="https://img.shields.io/badge/Bundler-tsup-FF6B6B.svg?style=for-the-badge&logo=esbuild&logoColor=white" alt="tsup">
+  <img src="https://img.shields.io/badge/Test-Vitest-FCC72B.svg?style=for-the-badge&logo=vitest&logoColor=black" alt="Vitest">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/stars/sandrotonal/repodoctor?style=for-the-badge&logo=github&color=FFD54F" alt="Stars">
+  <img src="https://img.shields.io/github/package-json/v/sandrotonal/repodoctor?style=for-the-badge&logo=npm&color=CB3837" alt="Version">
+  <img src="https://img.shields.io/github/license/sandrotonal/repodoctor?style=for-the-badge&logo=opensourceinitiative&color=8A2BE2" alt="License">
+  <img src="https://img.shields.io/badge/tests-84%20passed-2EA44F?style=for-the-badge&logo=vitest&logoColor=white" alt="Tests">
+</p>
+
 # 🩺 RepoDoctor
 
-Diagnose your project before you waste time debugging it.
+**Diagnose your project before you waste time debugging it.**
 
-RepoDoctor is a local-first CLI tool that scans a repository and reports why it may fail to install, start, build, or run correctly. Your code never leaves your machine.
+RepoDoctor is a **local-first** CLI tool that scans a repository and reports why it may fail to install, start, build, or run correctly. Your code **never leaves your machine**.
 
-## Quick start
+## ✨ Features
+
+| Area | What it detects |
+| --- | --- |
+| ⚙️ **Tooling** | Project files, package managers (`npm` / `yarn` / `pnpm` / `bun`), ambiguous or mismatched lock files |
+| 🟢 **Node.js** | Runtime vs `engines.node`, invalid semver ranges, script & dependency overview |
+| 📦 **Dependencies** | Missing `node_modules` or lock file, npm lock file out of sync, **unused** and **undeclared** packages via an import scan |
+| 🔐 **Environment** | `.env` vs `.env.example` key mismatches, `.env` not gitignored — values are **never** printed or exported |
+| 🌿 **Git** | Branch, detached HEAD, uncommitted & untracked changes |
+| 🔌 **Ports** | Live conflict checks for declared ports (`PORT` in env files, `config.port` in `package.json`) |
+| 💚 **Health score** | A 0–100 score with an `EXCELLENT → CRITICAL` grade |
+
+## 🚀 Quick start
 
 ```bash
 npx repodoctor
 ```
 
-## Usage
+## 📖 Usage
 
 ```bash
 repodoctor                      # analyze the current directory
@@ -20,37 +48,18 @@ repodoctor --ci                 # non-zero exit on warnings or worse
 repodoctor --fix                # apply safe automatic fixes (e.g. gitignore .env)
 ```
 
-## What it checks
+Exit code is `1` when a **critical** issue is found; `--ci` additionally exits `1` on warnings — perfect for CI pipelines.
 
-- **Project & tooling** — detects project files, package managers (`npm`, `yarn`, `pnpm`, `bun`) via lock files, and flags ambiguous/mismatched setup.
-- **Node.js** — compares your runtime against `engines.node`, validates the range, and reports script/dependency overview.
-- **Dependencies** — warns when `node_modules` or a lock file is missing, and detects when an npm lock file is out of sync with `package.json`. A source-code import scan flags packages that are declared but unused, plus imports that are missing from `package.json`.
-- **Environment** — compares `.env` keys against `.env.example` (values are never printed or exported), warns when `.env` is not gitignored, and detects hardcoded ports.
-- **Git** — reports branch, detached HEAD, and uncommitted/untracked changes when the project root is its own repository.
-- **Ports** — checks declared ports (`PORT` in env files, `config.port` in `package.json`) for live conflicts.
-- **Health score** — a 0–100 score and grade summarizing the whole scan.
-
-## Output & exit codes
-
-- Human-readable report including a health score by default.
-- `--json` prints a complete, secret-free scan result as JSON on stdout.
-- Exit code `1` when a **critical** issue is found (`--ci` additionally exits `1` on warnings).
-
-## Development
+## 🛠️ Development
 
 ```bash
 npm install
-npm run typecheck
-npm run build
-npm test
-node dist/index.js --help
+npm run typecheck   # tsc --noEmit
+npm run build       # tsup → dist/index.js
+npm test            # build + vitest
 ```
 
-## Status
-
-v0.2.0 — all roadmap items below are complete.
-
-## Roadmap
+## 🗺️ Roadmap
 
 - [x] CLI bootstrap
 - [x] Project scanner
@@ -66,11 +75,19 @@ v0.2.0 — all roadmap items below are complete.
 - [x] Automatic fixes
 - [x] Unused / undeclared dependency analysis
 
-## Notes
+## ⚠️ Note
 
-The unused/undeclared dependency analysis is heuristic: it scans your source files for
-import specifiers and cross-checks package.json. Verify flagged packages before removing them.
+The unused/undeclared dependency analysis is heuristic — it scans your source files for
+import specifiers and cross-checks `package.json`. Always verify flagged packages before removing them.
 
-## License
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://gucluyumhe.dev/"><strong>gucluyumhe.dev</strong></a>
+  <br>
+  <sub>Diagnose → Fix → Ship → <a href="https://gucluyumhe.dev/">Repeat</a></sub>
+</p>
+
+## 📄 License
 
 MIT
