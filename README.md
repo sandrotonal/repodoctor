@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="assets/repodoctor-logo.svg" alt="RepoDoctor logo" width="180">
-</p>
+
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
