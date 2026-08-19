@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import pkg from "../package.json" with { type: "json" };
+import { makeFixture, removeFixture } from "./helpers/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 const distEntry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
@@ -45,5 +46,16 @@ describe("repodoctor CLI", () => {
     expect(parsed.root).toBeTruthy();
     expect(Array.isArray(parsed.diagnostics)).toBe(true);
     expect(typeof parsed.health.score).toBe("number");
+  });
+
+  it("keeps stdout pure JSON when combining --json with --fix", async () => {
+    const root = await makeFixture({ ".env": "API_KEY=secret\n", ".env.example": "API_KEY=\n" });
+    try {
+      const { stdout } = await runCli([root, "--json", "--fix"]);
+      const parsed = JSON.parse(stdout) as { root: string };
+      expect(parsed.root).toBeTruthy();
+    } finally {
+      await removeFixture(root);
+    }
   });
 });

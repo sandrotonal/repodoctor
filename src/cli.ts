@@ -26,7 +26,7 @@ export function run(argv: string[] = process.argv): void {
         if (options.fix) {
           const { applied } = await applyFixes(result.root, result.diagnostics);
           if (applied.length > 0) {
-            console.log(chalk.green(`✓ Applied ${applied.length} fix(es): ${applied.join("; ")}`));
+            console.error(chalk.green(`✓ Applied ${applied.length} fix(es): ${applied.join("; ")}`));
             result = await scanProject(dir);
           }
         }

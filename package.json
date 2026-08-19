@@ -1,11 +1,12 @@
 {
-  "name": "repodoctor",
-  "version": "0.1.0",
+"name": "repodoctor",
+  "version": "0.2.0",
   "description": "Diagnose your project before you waste time debugging it.",
   "type": "module",
   "license": "MIT",
-  "bin": {
-    "repodoctor": "dist/index.js"
+  "packageManager": "npm@11.3.0",
+  "engines": {
+    "node": ">=18"
   },
   "files": [
     "dist"
