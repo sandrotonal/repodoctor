@@ -13,6 +13,10 @@ describe("computeHealthScore", () => {
     expect(computeHealthScore([])).toEqual({ score: 100, grade: "excellent" });
   });
 
+  it("does not penalize informational diagnostics", () => {
+    expect(computeHealthScore([diagnostic("info"), diagnostic("success")])).toEqual({ score: 100, grade: "excellent" });
+  });
+
   it("drops 30 per critical and 8 per warning", () => {
     expect(computeHealthScore([diagnostic("critical")])).toEqual({ score: 70, grade: "fair" });
     expect(computeHealthScore([diagnostic("warning")])).toEqual({ score: 92, grade: "excellent" });
