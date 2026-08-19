@@ -1,5 +1,5 @@
 {
-"name": "repodoctor",
+"name": "@gucluyumhe/repodoctor",
   "version": "0.2.0",
   "description": "Diagnose your project before you waste time debugging it.",
   "type": "module",

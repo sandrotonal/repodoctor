@@ -37,7 +37,7 @@ RepoDoctor is a **local-first** CLI tool that scans a repository and reports why
 ## Quick start
 
 ```bash
-npx repodoctor
+npx @gucluyumhe/repodoctor
 ```
 
 ## Usage
