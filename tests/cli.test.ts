@@ -37,4 +37,13 @@ describe("repodoctor CLI", () => {
     expect(stdout).toContain("🩺 RepoDoctor");
     expect(stdout).toContain("Scanning project...");
   });
+
+  it("outputs valid JSON and a health score with --json", async () => {
+    const { stdout, code } = await runCli(["--json"]);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout) as { root: string; diagnostics: { id: string }[]; health: { score: number } };
+    expect(parsed.root).toBeTruthy();
+    expect(Array.isArray(parsed.diagnostics)).toBe(true);
+    expect(typeof parsed.health.score).toBe("number");
+  });
 });

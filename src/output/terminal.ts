@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { Diagnostic, ScanResult } from "../core/types.js";
+import type { Diagnostic, HealthGrade, ScanResult } from "../core/types.js";
 
 export function renderScan(result: ScanResult): void {
   console.log(chalk.cyan("🩺 RepoDoctor"));
@@ -18,6 +18,7 @@ export function renderScan(result: ScanResult): void {
   }
 
   console.log("");
+  console.log(`Health score: ${renderHealth(result.health.score, result.health.grade)}`);
   console.log("Scan completed.");
 }
 
@@ -32,4 +33,22 @@ function renderDiagnostic(diagnostic: Diagnostic): string {
     case "critical":
       return `${chalk.red("✗")} ${diagnostic.title}`;
   }
+}
+
+function healthColor(grade: HealthGrade): (text: string) => string {
+  switch (grade) {
+    case "excellent":
+    case "good":
+      return chalk.green;
+    case "fair":
+      return chalk.yellow;
+    case "poor":
+      return chalk.magenta;
+    case "critical":
+      return chalk.red;
+  }
+}
+
+function renderHealth(score: number, grade: HealthGrade): string {
+  return healthColor(grade)(`${score}/100 (${grade.toUpperCase()})`);
 }

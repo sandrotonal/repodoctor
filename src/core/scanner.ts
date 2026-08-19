@@ -1,16 +1,41 @@
 import { resolve } from "node:path";
-import type { Diagnostic, PackageJsonResult, PackageManagerDetection, ProjectFacts, ScanResult } from "./types.js";
+import type { Diagnostic, HealthScore, PackageJsonResult, PackageManagerDetection, ProjectFacts, ScanResult } from "./types.js";
+import type { NpmLockResult } from "../detectors/lock-file.js";
+import type { EnvState } from "../detectors/env.js";
+import type { GitState } from "../detectors/git.js";
+import type { PortSource } from "../detectors/ports.js";
+import type { ImportScan } from "../detectors/imports.js";
 import { detectPackageManager } from "../detectors/package-manager.js";
 import { readPackageJson } from "../detectors/package-json.js";
 import { detectProjectFiles, directoryExists } from "../detectors/project.js";
+import { readNpmLock } from "../detectors/lock-file.js";
+import { readEnvState } from "../detectors/env.js";
+import { readGitState } from "../detectors/git.js";
+import { detectPorts } from "../detectors/ports.js";
+import { scanImports } from "../detectors/imports.js";
 import { checkNodeProject } from "../checks/node.js";
 import { checkNodeVersion } from "../checks/node-version.js";
 import { checkPackageJson } from "../checks/package-json.js";
+import { checkDependencies } from "../checks/dependencies.js";
+import { checkEnv } from "../checks/env.js";
+import { checkGit } from "../checks/git.js";
+import { checkPortConflicts } from "../checks/port-conflict.js";
+import { checkDependencyUsage } from "../checks/dependency-usage.js";
+import { computeHealthScore } from "./score.js";
 
 export async function scanProject(root: string): Promise<ScanResult> {
   const absoluteRoot = resolve(root);
 
   if (!(await directoryExists(absoluteRoot))) {
+    const diagnostics: Diagnostic[] = [
+      {
+        id: "project.directory-missing",
+        severity: "critical",
+        title: "Project directory not found",
+        message: `Directory does not exist: ${absoluteRoot}`,
+        recommendation: "Check the path and run RepoDoctor again.",
+      },
+    ];
     return {
       root: absoluteRoot,
       projectDetected: false,
@@ -22,25 +47,35 @@ export async function scanProject(root: string): Promise<ScanResult> {
       envFiles: [],
       packageManager: { manager: null, lockFiles: [], ambiguous: false },
       packageJson: { exists: false, content: null, parseError: null },
-      diagnostics: [
-        {
-          id: "project.directory-missing",
-          severity: "critical",
-          title: "Project directory not found",
-          message: `Directory does not exist: ${absoluteRoot}`,
-          recommendation: "Check the path and run RepoDoctor again.",
-        },
-      ],
+      diagnostics,
+      health: computeHealthScore(diagnostics),
     };
   }
 
-  const [files, packageManager, packageJson] = await Promise.all([
+  const [files, packageManager, packageJson, envState] = await Promise.all([
     detectProjectFiles(absoluteRoot),
     detectPackageManager(absoluteRoot),
     readPackageJson(absoluteRoot),
+    readEnvState(absoluteRoot),
   ]);
 
-  const diagnostics = buildDiagnostics({ root: absoluteRoot, files, packageManager, packageJson });
+  const npmLock = packageManager.manager === "npm" ? await readNpmLock(absoluteRoot) : null;
+  const git = files.gitRepo ? await readGitState(absoluteRoot) : null;
+  const ports = await detectPorts(absoluteRoot, packageJson.content);
+  const imports = await scanImports(absoluteRoot);
+
+  const diagnostics = await buildDiagnostics({
+    root: absoluteRoot,
+    files,
+    packageManager,
+    packageJson,
+    npmLock,
+    envState,
+    git,
+    ports,
+    imports,
+  });
+  const health = computeHealthScore(diagnostics);
 
   return {
     root: absoluteRoot,
@@ -48,6 +83,7 @@ export async function scanProject(root: string): Promise<ScanResult> {
     packageManager,
     packageJson,
     diagnostics,
+    health,
   };
 }
 
@@ -56,10 +92,15 @@ interface BuildContext {
   files: ProjectFacts;
   packageManager: PackageManagerDetection;
   packageJson: PackageJsonResult;
+  npmLock: NpmLockResult | null;
+  envState: EnvState;
+  git: GitState | null;
+  ports: PortSource[];
+  imports: ImportScan;
 }
 
-function buildDiagnostics(ctx: BuildContext): Diagnostic[] {
-  const { root, files, packageManager, packageJson } = ctx;
+async function buildDiagnostics(ctx: BuildContext): Promise<Diagnostic[]> {
+  const { root, files, packageManager, packageJson, npmLock, envState, git, ports, imports } = ctx;
   const diagnostics: Diagnostic[] = [
     {
       id: "project.directory",
@@ -119,6 +160,18 @@ function buildDiagnostics(ctx: BuildContext): Diagnostic[] {
   diagnostics.push(...checkNodeProject(files.packageJsonExists));
   diagnostics.push(...checkPackageJson(packageJson.content, packageJson.parseError, packageManager));
   diagnostics.push(...checkNodeVersion(process.version, packageJson.content));
+  diagnostics.push(
+    ...checkDependencies({
+      data: packageJson.content,
+      nodeModulesInstalled: files.nodeModulesInstalled,
+      packageManager,
+      npmLock,
+    }),
+  );
+  diagnostics.push(...checkEnv(envState));
+  diagnostics.push(...checkGit(git, files.gitRepo));
+  diagnostics.push(...(await checkPortConflicts(ports)));
+  diagnostics.push(...checkDependencyUsage({ data: packageJson.content, imports }));
 
   return diagnostics;
 }

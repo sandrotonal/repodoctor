@@ -43,9 +43,17 @@ export interface ProjectFacts {
   envFiles: string[];
 }
 
+export type HealthGrade = "excellent" | "good" | "fair" | "poor" | "critical";
+
+export interface HealthScore {
+  score: number;
+  grade: HealthGrade;
+}
+
 export interface ScanResult extends ProjectFacts {
   root: string;
   packageManager: PackageManagerDetection;
   packageJson: PackageJsonResult;
   diagnostics: Diagnostic[];
+  health: HealthScore;
 }

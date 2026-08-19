@@ -22,7 +22,21 @@ node dist/index.js --help
 
 ## Status
 
-v0.1.0 — TypeScript CLI bootstrap. Detectors are implemented incrementally (see roadmap).
+v0.1.0 — TypeScript CLI. Detectors are implemented incrementally (see roadmap).
+
+## Usage
+
+```bash
+repodoctor                      # analyze the current directory
+repodoctor ./path/to/project    # analyze a specific directory
+repodoctor --json               # machine-readable JSON output
+repodoctor --ci                 # non-zero exit on warnings or worse
+repodoctor --fix                # apply safe automatic fixes (e.g. gitignore .env)
+```
+
+Checks include project/package-manager detection, Node.js version vs `engines`, dependency
+install state and npm lock-file sync, plus unused / undelcared dependency analysis from an
+import scan of your source files.
 
 ## Roadmap
 
@@ -30,14 +44,14 @@ v0.1.0 — TypeScript CLI bootstrap. Detectors are implemented incrementally (se
 - [x] Project scanner
 - [x] Package manager detection
 - [x] Node.js version checks
-- [ ] Dependency checks
-- [ ] Environment checks
-- [ ] Git diagnostics
-- [ ] Port conflict detection
-- [ ] Health score
-- [ ] JSON output
-- [ ] CI mode
-- [ ] Automatic fixes
+- [x] Dependency checks
+- [x] Environment checks
+- [x] Git diagnostics
+- [x] Port conflict detection
+- [x] Health score
+- [x] JSON output
+- [x] CI mode
+- [x] Automatic fixes
 
 ## License
 

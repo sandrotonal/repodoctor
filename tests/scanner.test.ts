@@ -76,7 +76,9 @@ describe("project scan", () => {
       "package-lock.json": "{}",
       ".git": "dir",
       "node_modules": "dir",
+      ".env": "",
       ".env.example": "",
+      ".gitignore": ".env\n",
     });
     try {
       const result = await scanProject(root);
@@ -95,6 +97,7 @@ describe("project scan", () => {
       expect(ids).toContain("project.node-modules");
       expect(ids).toContain("project.env-example");
       expect(result.diagnostics.every((d) => d.severity === "success" || d.severity === "info")).toBe(true);
+      expect(result.health.score).toBeGreaterThan(0);
     } finally {
       await removeFixture(root);
     }
@@ -155,5 +158,94 @@ describe("project scan", () => {
     await removeFixture(missing);
     const result = await scanProject(missing);
     expect(result.diagnostics.some((d) => d.id === "project.directory-missing" && d.severity === "critical")).toBe(true);
+  });
+
+  it("warns when dependencies are declared but node_modules is missing", async () => {
+    const root = await makeFixture({
+      "package.json": JSON.stringify({ dependencies: { react: "^18.0.0" } }),
+      "package-lock.json": "{}",
+    });
+    try {
+      const result = await scanProject(root);
+      const warn = result.diagnostics.find((d) => d.id === "dependencies.node-modules-missing");
+      expect(warn?.severity).toBe("warning");
+    } finally {
+      await removeFixture(root);
+    }
+  });
+
+  it("warns when the npm lock file is out of sync with package.json", async () => {
+    const root = await makeFixture({
+      "package.json": JSON.stringify({ dependencies: { react: "^18.0.0" } }),
+      "package-lock.json": JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "node_modules/other": { version: "1.0.0" } } }),
+      "node_modules": "dir",
+    });
+    try {
+      const result = await scanProject(root);
+      const outOfSync = result.diagnostics.find((d) => d.id === "dependencies.lock-out-of-sync");
+      expect(outOfSync?.severity).toBe("warning");
+      expect(outOfSync?.message).toContain("react (missing)");
+    } finally {
+      await removeFixture(root);
+    }
+  });
+
+  it("skips npm lock sync checks for non-npm projects", async () => {
+    const root = await makeFixture({
+      "package.json": JSON.stringify({ dependencies: { react: "^18.0.0" } }),
+      "yarn.lock": "",
+      "node_modules": "dir",
+    });
+    try {
+      const result = await scanProject(root);
+      expect(result.diagnostics.some((d) => d.id === "dependencies.lock-out-of-sync")).toBe(false);
+      expect(result.packageManager.manager).toBe("yarn");
+    } finally {
+      await removeFixture(root);
+    }
+  });
+
+  it("warns about missing env keys and unignored .env without leaking values", async () => {
+    const root = await makeFixture({
+      ".env": "API_KEY=hunter2\n",
+      ".env.example": "API_KEY=\nDATABASE_URL=\n",
+    });
+    try {
+      const result = await scanProject(root);
+      const keysMissing = result.diagnostics.find((d) => d.id === "env.keys-missing");
+      expect(keysMissing?.severity).toBe("warning");
+      expect(keysMissing?.message).toContain("DATABASE_URL");
+      expect(result.diagnostics.some((d) => d.id === "env.not-gitignored")).toBe(true);
+      const allText = JSON.stringify(result);
+      expect(allText).not.toContain("hunter2");
+    } finally {
+      await removeFixture(root);
+    }
+  });
+
+  it("reports info when the git working tree cannot be read", async () => {
+    const root = await makeFixture({ ".git": "dir", "file.txt": "hello\n" });
+    try {
+      const result = await scanProject(root);
+      expect(result.diagnostics.some((d) => d.id === "git.unavailable" && d.severity === "info")).toBe(true);
+    } finally {
+      await removeFixture(root);
+    }
+  });
+
+  it("flags imported packages that are not declared", async () => {
+    const root = await makeFixture({
+      "package.json": JSON.stringify({ dependencies: { react: "^18.0.0" } }),
+      "src/index.ts": 'import axios from "axios";\nimport React from "react";\n',
+    });
+    try {
+      const result = await scanProject(root);
+      const missing = result.diagnostics.find((d) => d.id === "dependencies.imported-not-declared");
+      expect(missing?.severity).toBe("warning");
+      expect(missing?.message).toContain("axios");
+      expect(missing?.message).not.toContain("react");
+    } finally {
+      await removeFixture(root);
+    }
   });
 });
