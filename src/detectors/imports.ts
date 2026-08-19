@@ -66,13 +66,46 @@ async function walkSourceFiles(root: string): Promise<string[]> {
   return results;
 }
 
+function outsideStringRegions(text: string): Uint8Array {
+  const outside = new Uint8Array(text.length).fill(1);
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const start = text[i]!;
+    if (start !== '"' && start !== "'" && start !== "`") {
+      i += 1;
+      continue;
+    }
+    let j = i + 1;
+    while (j < n) {
+      const current = text[j]!;
+      if (current === "\\") {
+        j += 2;
+        continue;
+      }
+      if (current === start) {
+        break;
+      }
+      j += 1;
+    }
+    for (let k = i; k <= j && k < n; k += 1) {
+      outside[k] = 0;
+    }
+    i = j < n ? j + 1 : n;
+  }
+  return outside;
+}
+
 function extractSpecifiers(text: string): string[] {
+  const outside = outsideStringRegions(text);
   const specifiers: string[] = [];
   for (const pattern of SPECIFIER_PATTERNS) {
     const local = new RegExp(pattern.source, "g");
     let match;
     while ((match = local.exec(text)) !== null) {
-      specifiers.push(match[1]!);
+      if (outside[match.index] === 1) {
+        specifiers.push(match[1]!);
+      }
     }
   }
   return specifiers;

@@ -55,6 +55,19 @@ describe("scanImports", () => {
       await removeFixture(root);
     }
   });
+
+  it("ignores import-like text inside string literals", async () => {
+    const root = await makeFixture({
+      "src/seed.ts": "const fixture = 'import \\\"fake-import\\\";\\nconst x = require(\\\"also-fake\\\");';\n",
+    });
+    try {
+      const result = await scanImports(root);
+      expect(result.packagesImported.has("fake-import")).toBe(false);
+      expect(result.packagesImported.has("also-fake")).toBe(false);
+    } finally {
+      await removeFixture(root);
+    }
+  });
 });
 
 const noImports: ImportScan = { packagesUsed: new Set(), packagesImported: new Set() };
