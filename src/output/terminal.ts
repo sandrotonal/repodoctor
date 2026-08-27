@@ -63,9 +63,12 @@ const SEVERITY_LABELS: Record<Severity, string> = {
 
 const SEVERITY_ORDER: Record<Severity, number> = { success: 0, info: 1, warning: 2, critical: 3 };
 
-const CATEGORY_ORDER = ["Project", "Dependencies", "Node.js", "Environment", "Git", "Ports"];
+const CATEGORY_ORDER = ["Project", "Security", "Dependencies", "TypeScript", "Node.js", "Environment", "Git", "Docker", "Ports"];
 
 function categoryOf(id: string): string {
+  if (id.startsWith("secret") || id.startsWith("security")) return "Security";
+  if (id.startsWith("typescript")) return "TypeScript";
+  if (id.startsWith("docker")) return "Docker";
   if (id.startsWith("node")) return "Node.js";
   if (id.startsWith("package-") || id.startsWith("dependencies")) return "Dependencies";
   if (id.startsWith("env")) return "Environment";

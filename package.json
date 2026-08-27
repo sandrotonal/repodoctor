@@ -1,7 +1,7 @@
 {
-"name": "@gucluyumhe/repodoctor",
-  "version": "0.2.0",
-  "description": "Diagnose your project before you waste time debugging it.",
+  "name": "@gucluyumhe/repodoctor",
+  "version": "0.3.0",
+  "description": "Diagnose your project health, secret leaks, and misconfigurations before you waste time debugging.",
   "type": "module",
   "license": "MIT",
   "author": "Ömer Özbay (https://gucluyumhe.dev/)",
@@ -13,6 +13,20 @@
   "bugs": {
     "url": "https://github.com/sandrotonal/repodoctor/issues"
   },
+  "keywords": [
+    "cli",
+    "doctor",
+    "diagnostics",
+    "security",
+    "secret-scanner",
+    "devops",
+    "health-check",
+    "linter",
+    "docker",
+    "typescript",
+    "npm",
+    "package-health"
+  ],
   "packageManager": "npm@11.3.0",
   "bin": {
     "repodoctor": "dist/index.js"

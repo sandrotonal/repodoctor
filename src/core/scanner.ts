@@ -5,6 +5,8 @@ import type { EnvState } from "../detectors/env.js";
 import type { GitState } from "../detectors/git.js";
 import type { PortSource } from "../detectors/ports.js";
 import type { ImportScan } from "../detectors/imports.js";
+import type { SecurityScan } from "../detectors/secrets.js";
+import type { ConfigsState } from "../detectors/configs.js";
 import { detectPackageManager } from "../detectors/package-manager.js";
 import { readPackageJson } from "../detectors/package-json.js";
 import { detectProjectFiles, directoryExists } from "../detectors/project.js";
@@ -13,6 +15,8 @@ import { readEnvState } from "../detectors/env.js";
 import { readGitState } from "../detectors/git.js";
 import { detectPorts } from "../detectors/ports.js";
 import { scanImports } from "../detectors/imports.js";
+import { scanSecrets } from "../detectors/secrets.js";
+import { detectConfigs } from "../detectors/configs.js";
 import { checkNodeProject } from "../checks/node.js";
 import { checkNodeVersion } from "../checks/node-version.js";
 import { checkPackageJson } from "../checks/package-json.js";
@@ -21,6 +25,8 @@ import { checkEnv } from "../checks/env.js";
 import { checkGit } from "../checks/git.js";
 import { checkPortConflicts } from "../checks/port-conflict.js";
 import { checkDependencyUsage } from "../checks/dependency-usage.js";
+import { checkSecurity } from "../checks/security.js";
+import { checkConfigs } from "../checks/configs.js";
 import { computeHealthScore } from "./score.js";
 
 export interface ScanOptions {
@@ -69,6 +75,8 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
   const git = files.gitRepo ? await track(readGitState(absoluteRoot), "Inspecting git state", onProgress) : null;
   const ports = await track(detectPorts(absoluteRoot, packageJson.content), "Checking configured ports", onProgress);
   const imports = await track(scanImports(absoluteRoot), "Scanning source imports", onProgress);
+  const security = await track(scanSecrets(absoluteRoot, packageJson.content), "Scanning for secrets and security risks", onProgress);
+  const configs = await track(detectConfigs(absoluteRoot), "Checking TypeScript and tooling configs", onProgress);
 
   onProgress?.("Evaluating diagnostics");
   const diagnostics = await buildDiagnostics({
@@ -81,6 +89,8 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
     git,
     ports,
     imports,
+    security,
+    configs,
   });
   const health = computeHealthScore(diagnostics);
 
@@ -104,6 +114,8 @@ interface BuildContext {
   git: GitState | null;
   ports: PortSource[];
   imports: ImportScan;
+  security: SecurityScan;
+  configs: ConfigsState;
 }
 
 async function track<T>(promise: Promise<T>, label: string, onProgress?: (label: string) => void): Promise<T> {
@@ -113,7 +125,7 @@ async function track<T>(promise: Promise<T>, label: string, onProgress?: (label:
 }
 
 async function buildDiagnostics(ctx: BuildContext): Promise<Diagnostic[]> {
-  const { root, files, packageManager, packageJson, npmLock, envState, git, ports, imports } = ctx;
+  const { root, files, packageManager, packageJson, npmLock, envState, git, ports, imports, security, configs } = ctx;
   const diagnostics: Diagnostic[] = [
     {
       id: "project.directory",
@@ -185,6 +197,8 @@ async function buildDiagnostics(ctx: BuildContext): Promise<Diagnostic[]> {
   diagnostics.push(...checkGit(git, files.gitRepo));
   diagnostics.push(...(await checkPortConflicts(ports)));
   diagnostics.push(...checkDependencyUsage({ data: packageJson.content, imports }));
+  diagnostics.push(...checkSecurity(security));
+  diagnostics.push(...checkConfigs(configs));
 
   return diagnostics;
 }

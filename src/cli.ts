@@ -1,9 +1,13 @@
+import { writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { Command } from "commander";
 import chalk from "chalk";
 import pkg from "../package.json" with { type: "json" };
 import { scanProject } from "./core/scanner.js";
 import { renderScan, type ScanStyle } from "./output/terminal.js";
 import { renderJson } from "./output/json.js";
+import { generateHtmlReport } from "./output/html.js";
+import { generateSarifReport } from "./output/sarif.js";
 import { applyFixes } from "./fixes.js";
 import type { ScanAnimationHandle } from "./output/animate.js";
 import { createScanAnimation } from "./output/animate.js";
@@ -15,6 +19,8 @@ interface CliOptions {
   ci: boolean;
   fix: boolean;
   style?: string;
+  html?: string;
+  sarif?: string;
 }
 
 export function run(argv: string[] = process.argv): void {
@@ -29,6 +35,8 @@ export function run(argv: string[] = process.argv): void {
     .option("--ci", "machine-readable mode; exits non-zero on warnings or worse")
     .option("--fix", "attempt safe automatic fixes for the issues found")
     .option("--style <mode>", "output style: plain, panel or auto (default: auto)")
+    .option("--html <file>", "export interactive HTML report to file")
+    .option("--sarif <file>", "export SARIF 2.1.0 report for GitHub Code Scanning")
     .action(async (dir: string, options: CliOptions) => {
       try {
         const style = resolveStyle(options.style);
@@ -43,6 +51,20 @@ export function run(argv: string[] = process.argv): void {
           }
         }
 
+        if (options.html) {
+          const htmlContent = generateHtmlReport(result);
+          const outputPath = resolve(process.cwd(), options.html);
+          await writeFile(outputPath, htmlContent, "utf8");
+          console.error(chalk.green(`HTML report saved to: ${outputPath}`));
+        }
+
+        if (options.sarif) {
+          const sarifContent = generateSarifReport(result, version);
+          const outputPath = resolve(process.cwd(), options.sarif);
+          await writeFile(outputPath, sarifContent, "utf8");
+          console.error(chalk.green(`SARIF report saved to: ${outputPath}`));
+        }
+
         if (options.json) {
           renderJson(result);
         } else {
@@ -54,7 +76,7 @@ export function run(argv: string[] = process.argv): void {
         if (options.ci ? hasCritical || hasWarning : hasCritical) {
           process.exitCode = 1;
         }
-      } catch (error) {
+      } catch {
         console.error(chalk.red("Unable to analyze the project directory."));
         process.exitCode = 1;
       }
