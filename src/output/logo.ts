@@ -13,7 +13,6 @@ export function renderLogo(inner: number): string[] {
     centerText(gradient(PULSE_WAVE, BRAND_START, BRAND_END), inner),
     "",
     centerText(gradient(WORDMARK, BRAND_START, BRAND_END), inner),
-    centerText(chalk.dim(` ${WORDMARK}`), inner),
     "",
     centerText(chalk.dim("Diagnose before you waste time debugging it."), inner),
   ];
