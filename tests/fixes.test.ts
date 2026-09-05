@@ -77,4 +77,50 @@ describe("Smart Auto-Fix Engine", () => {
       await removeFixture(fixture);
     }
   });
+
+  it("creates default tsconfig.json when missing", async () => {
+    const fixture = await makeFixture({
+      "src/index.ts": "console.log('hi');",
+    });
+
+    try {
+      const { applied } = await applyFixes(fixture, [
+        {
+          id: "typescript.missing-config",
+          severity: "warning",
+          title: "TypeScript files without tsconfig.json",
+        },
+      ]);
+
+      expect(applied.length).toBe(1);
+      const content = await readFile(path.join(fixture, "tsconfig.json"), "utf8");
+      const parsed = JSON.parse(content);
+      expect(parsed.compilerOptions.strict).toBe(true);
+    } finally {
+      await removeFixture(fixture);
+    }
+  });
+
+  it("creates default tailwind.config.js when missing", async () => {
+    const fixture = await makeFixture({
+      "package.json": JSON.stringify({ dependencies: { tailwindcss: "^3.0.0" } }),
+    });
+
+    try {
+      const { applied } = await applyFixes(fixture, [
+        {
+          id: "framework.tailwind.missing-config",
+          severity: "warning",
+          title: "Tailwind missing config",
+        },
+      ]);
+
+      expect(applied.length).toBe(1);
+      const content = await readFile(path.join(fixture, "tailwind.config.js"), "utf8");
+      expect(content).toContain("tailwindcss");
+      expect(content).toContain("content:");
+    } finally {
+      await removeFixture(fixture);
+    }
+  });
 });

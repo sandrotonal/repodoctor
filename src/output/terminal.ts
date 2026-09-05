@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import type { Diagnostic, HealthGrade, ScanResult, Severity } from "../core/types.js";
-import { clamp, gradient, segmentBar, visibleLength, wordWrap } from "./theme.js";
+import { clamp, gradient, padAnsi, segmentBar, visibleLength, wordWrap } from "./theme.js";
 import { renderLogo } from "./logo.js";
 
 export type ScanStyle = "plain" | "panel";
@@ -63,10 +63,14 @@ const SEVERITY_LABELS: Record<Severity, string> = {
 
 const SEVERITY_ORDER: Record<Severity, number> = { success: 0, info: 1, warning: 2, critical: 3 };
 
-const CATEGORY_ORDER = ["Project", "Security", "Dependencies", "TypeScript", "Node.js", "Environment", "Git", "Docker", "Ports"];
+const CATEGORY_ORDER = ["Project", "Security", "Packages", "CI/CD", "Frameworks", "Monorepo", "Dependencies", "TypeScript", "Node.js", "Environment", "Git", "Docker", "Ports"];
 
 function categoryOf(id: string): string {
   if (id.startsWith("secret") || id.startsWith("security")) return "Security";
+  if (id.startsWith("packages.")) return "Packages";
+  if (id.startsWith("ci.")) return "CI/CD";
+  if (id.startsWith("framework")) return "Frameworks";
+  if (id.startsWith("monorepo")) return "Monorepo";
   if (id.startsWith("typescript")) return "TypeScript";
   if (id.startsWith("docker")) return "Docker";
   if (id.startsWith("node")) return "Node.js";
@@ -118,7 +122,7 @@ function renderHeader(inner: number): string {
   const border = chalk.cyan;
   return [
     border(`╔${"═".repeat(inner)}╗`),
-    ...renderLogo(inner).map((row) => `║${row.padEnd(inner)}║`),
+    ...renderLogo(inner).map((row) => `║${padAnsi(row, inner)}║`),
     border(`╚${"═".repeat(inner)}╝`),
   ].join("\n");
 }
@@ -145,7 +149,7 @@ function renderCategoryPanel(category: string, diagnostics: Diagnostic[], inner:
 
   return [
     `${color("╭")}${color("─")} ${gradient(category, [0, 196, 255], [255, 106, 255])} ${color("─".repeat(dashes))}${color("╮")}`,
-    ...body.map((line) => `${color("│")} ${line.padEnd(inner - 2)} ${color("│")}`),
+    ...body.map((line) => `${color("│")} ${padAnsi(line, inner - 2)} ${color("│")}`),
     `${color("╰")}${color("─".repeat(inner))}${color("╯")}`,
     "",
   ].join("\n");
@@ -168,8 +172,8 @@ function renderHealthPanel(result: ScanResult, inner: number): string {
 
   return [
     `${chalk.cyan("╭")}${chalk.cyan("─")} ${title} ${chalk.cyan("─".repeat(dashes))}${chalk.cyan("╮")}`,
-    `${chalk.cyan("│")} ${gradeColor(bar).padEnd(inner - 2)} ${chalk.cyan("│")}`,
-    `${chalk.cyan("│")} ${summary.padEnd(inner - 2)} ${chalk.cyan("│")}`,
+    `${chalk.cyan("│")} ${padAnsi(gradeColor(bar), inner - 2)} ${chalk.cyan("│")}`,
+    `${chalk.cyan("│")} ${padAnsi(summary, inner - 2)} ${chalk.cyan("│")}`,
     `${chalk.cyan("╰")}${chalk.cyan("─".repeat(inner))}${chalk.cyan("╯")}`,
     "",
   ].join("\n");

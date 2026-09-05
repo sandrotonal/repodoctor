@@ -7,6 +7,10 @@ import type { PortSource } from "../detectors/ports.js";
 import type { ImportScan } from "../detectors/imports.js";
 import type { SecurityScan } from "../detectors/secrets.js";
 import type { ConfigsState } from "../detectors/configs.js";
+import type { FrameworkScanResult } from "../detectors/frameworks.js";
+import type { WorkspaceScanResult } from "../detectors/workspaces.js";
+import type { PackageSupplyChainResult } from "../detectors/packages.js";
+import type { CiScanResult } from "../detectors/ci.js";
 import { detectPackageManager } from "../detectors/package-manager.js";
 import { readPackageJson } from "../detectors/package-json.js";
 import { detectProjectFiles, directoryExists } from "../detectors/project.js";
@@ -17,6 +21,10 @@ import { detectPorts } from "../detectors/ports.js";
 import { scanImports } from "../detectors/imports.js";
 import { scanSecrets } from "../detectors/secrets.js";
 import { detectConfigs } from "../detectors/configs.js";
+import { detectFrameworks } from "../detectors/frameworks.js";
+import { detectWorkspaces } from "../detectors/workspaces.js";
+import { checkPackageSupplyChain } from "../detectors/packages.js";
+import { detectCiWorkflows } from "../detectors/ci.js";
 import { checkNodeProject } from "../checks/node.js";
 import { checkNodeVersion } from "../checks/node-version.js";
 import { checkPackageJson } from "../checks/package-json.js";
@@ -27,6 +35,10 @@ import { checkPortConflicts } from "../checks/port-conflict.js";
 import { checkDependencyUsage } from "../checks/dependency-usage.js";
 import { checkSecurity } from "../checks/security.js";
 import { checkConfigs } from "../checks/configs.js";
+import { checkFrameworks } from "../checks/frameworks.js";
+import { checkWorkspaces } from "../checks/workspaces.js";
+import { checkPackages } from "../checks/packages.js";
+import { checkCi } from "../checks/ci.js";
 import { computeHealthScore } from "./score.js";
 
 export interface ScanOptions {
@@ -77,6 +89,10 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
   const imports = await track(scanImports(absoluteRoot), "Scanning source imports", onProgress);
   const security = await track(scanSecrets(absoluteRoot, packageJson.content), "Scanning for secrets and security risks", onProgress);
   const configs = await track(detectConfigs(absoluteRoot), "Checking TypeScript and tooling configs", onProgress);
+  const frameworks = await track(detectFrameworks(absoluteRoot, packageJson.content), "Analyzing web frameworks", onProgress);
+  const workspaces = await track(detectWorkspaces(absoluteRoot, packageJson.content), "Scanning monorepo workspaces", onProgress);
+  const packages = checkPackageSupplyChain(packageJson.content);
+  const ci = await track(detectCiWorkflows(absoluteRoot), "Scanning CI/CD workflows", onProgress);
 
   onProgress?.("Evaluating diagnostics");
   const diagnostics = await buildDiagnostics({
@@ -91,6 +107,10 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
     imports,
     security,
     configs,
+    frameworks,
+    workspaces,
+    packages,
+    ci,
   });
   const health = computeHealthScore(diagnostics);
 
@@ -116,6 +136,10 @@ interface BuildContext {
   imports: ImportScan;
   security: SecurityScan;
   configs: ConfigsState;
+  frameworks: FrameworkScanResult;
+  workspaces: WorkspaceScanResult;
+  packages: PackageSupplyChainResult;
+  ci: CiScanResult;
 }
 
 async function track<T>(promise: Promise<T>, label: string, onProgress?: (label: string) => void): Promise<T> {
@@ -125,7 +149,7 @@ async function track<T>(promise: Promise<T>, label: string, onProgress?: (label:
 }
 
 async function buildDiagnostics(ctx: BuildContext): Promise<Diagnostic[]> {
-  const { root, files, packageManager, packageJson, npmLock, envState, git, ports, imports, security, configs } = ctx;
+  const { root, files, packageManager, packageJson, npmLock, envState, git, ports, imports, security, configs, frameworks, workspaces, packages, ci } = ctx;
   const diagnostics: Diagnostic[] = [
     {
       id: "project.directory",
@@ -199,6 +223,10 @@ async function buildDiagnostics(ctx: BuildContext): Promise<Diagnostic[]> {
   diagnostics.push(...checkDependencyUsage({ data: packageJson.content, imports }));
   diagnostics.push(...checkSecurity(security));
   diagnostics.push(...checkConfigs(configs));
+  diagnostics.push(...checkFrameworks(frameworks));
+  diagnostics.push(...checkWorkspaces(workspaces));
+  diagnostics.push(...checkPackages(packages));
+  diagnostics.push(...checkCi(ci));
 
   return diagnostics;
 }

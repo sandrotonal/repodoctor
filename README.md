@@ -1,15 +1,18 @@
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/Node.js-339933.svg?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js">
+  <img src="https://img.shields.io/badge/Next.js-000000.svg?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js">
+  <img src="https://img.shields.io/badge/Vite-646CFF.svg?style=for-the-badge&logo=vite&logoColor=white" alt="Vite">
+  <img src="https://img.shields.io/badge/Monorepo-pnpm%20%7C%20Turbo-F69220.svg?style=for-the-badge&logo=pnpm&logoColor=white" alt="Monorepo">
   <img src="https://img.shields.io/badge/Security-Secret%20Scanner-red.svg?style=for-the-badge&logo=securityscorecard&logoColor=white" alt="Security">
   <img src="https://img.shields.io/badge/SARIF-GitHub%20Code%20Scanning-blue.svg?style=for-the-badge&logo=githubactions&logoColor=white" alt="SARIF">
-  <img src="https://img.shields.io/badge/Test-Vitest%20(110%20passed)-2EA44F?style=for-the-badge&logo=vitest&logoColor=white" alt="Vitest">
+  <img src="https://img.shields.io/badge/Test-Vitest%20(132%20passed)-2EA44F?style=for-the-badge&logo=vitest&logoColor=white" alt="Vitest">
   <img src="https://img.shields.io/github/license/sandrotonal/repodoctor?style=for-the-badge&logo=opensourceinitiative&color=8A2BE2" alt="License">
 </p>
 
 # RepoDoctor
 
-> **Local-first repository health, security, and configuration diagnostic engine.**  
+> **Local-first repository health, security, framework, and monorepo diagnostic engine.**  
 > Diagnose why your project fails to install, build, or deploy — and catch leaked secrets before you push.
 
 RepoDoctor inspects your codebase locally in milliseconds. Your code **never leaves your machine**.
@@ -24,20 +27,38 @@ No installation required:
 npx @gucluyumhe/repodoctor
 ```
 
+Install automated CI workflow in 1 second:
+
+```bash
+npx @gucluyumhe/repodoctor init-ci
+```
+
+Install git pre-commit protection in 1 second:
+
+```bash
+npx @gucluyumhe/repodoctor init-hook
+```
+
 ---
 
 ## Features & Diagnostic Modules
 
 | Module | What RepoDoctor Detects |
 | :--- | :--- |
-| **Security & Secrets** | Real-time scanner for **hardcoded API keys** (OpenAI, AWS, GitHub, Stripe, Slack, Private RSA/SSH Keys, Database credentials with passwords) & **malicious `package.json` scripts** (`curl \| sh`, `rm -rf /`, `chmod 777`). |
+| **Security & Secrets** | Real-time scanner for **hardcoded API keys** (Google Gemini, Anthropic Claude, OpenAI, AWS, HuggingFace, GitHub, Stripe, Slack, Discord, Telegram, JWTs, Private RSA/SSH Keys, Database credentials with passwords) & **malicious `package.json` scripts** (`curl \| sh`, `rm -rf /`, `chmod 777`). |
+| **Package Supply Chain** | Detects **deprecated packages** (`request`, `tslint`, `nomnom`, `urllib`, `colors`, etc.), **typosquatting attacks** (`cross-env.js`, `crossenv`), missing licenses, and restrictive copyleft licenses (`GPL`, `AGPL`). |
+| **CI/CD Workflow Health** | Scans `.github/workflows/` for missing checkouts, missing Node.js setup, unpinned action versions, missing node-version declarations, and unmonitored pull requests. |
+| **Framework Health** | Deep checks for **Next.js** (`"use client"` components leaking `server-only` or database clients), **Vite & Next.js Env Prefix Mismatches** (e.g. using `NEXT_PUBLIC_` in Vite or `VITE_` in Next.js), and missing **TailwindCSS / PostCSS** configurations. |
+| **Monorepo & Workspaces** | Inspects **pnpm workspaces**, **Turborepo**, **Lerna**, and **npm/yarn workspaces**. Flags **dependency version drift** across workspace sub-packages (`packages/*`, `apps/*`). |
 | **TypeScript Health** | Validates `tsconfig.json`, flags disabled `strict` mode, missing `skipLibCheck`, and orphan `.ts` files without a configuration. |
 | **Docker & DevOps** | Detects `Dockerfile` without `.dockerignore`, ensuring `node_modules`, `.env`, and `.git` are not accidentally leaked into image build contexts. |
 | **Dependencies & Lockfiles** | Detects package managers (`npm`, `yarn`, `pnpm`, `bun`), ambiguous lockfiles, lockfile desyncs, plus **unused** & **undeclared** packages via source AST scan. |
 | **Environment & Git** | Validates `.env` against `.env.example` key mismatches, checks unignored `.env` files (values are **never** logged or exported), and monitors git tree status. |
 | **Live Port Conflicts** | Binds live TCP sockets to detect if ports declared in `.env` (`PORT=3000`) or `package.json` are already in use. |
-| **Multi-Format Export** | Beautiful terminal panel UI with animations, pure JSON (`--json`), **Interactive Dark-mode HTML Dashboard** (`--html`), and **SARIF 2.1.0** for GitHub Code Scanning. |
-| **Smart Auto-Fix** | Automatically repairs common issues (`.gitignore`, `.dockerignore`, generating `.env.example` from `.env` keys). |
+| **Multi-Format Export** | Beautiful terminal panel UI with animations, pure JSON (`--json`), **Interactive Dark-mode HTML Dashboard** (`--html`), **SARIF 2.1.0** for GitHub Code Scanning, and **GitHub Flavored Markdown** (`--markdown`) for Step Summaries. |
+| **CI Workflow Generator** | Command `repodoctor init-ci` automatically scaffolds a complete GitHub Actions CI pipeline with SARIF security scanning. |
+| **Git Pre-Commit Hook** | Command `repodoctor init-hook` sets up zero-friction pre-commit hooks to block commits containing secrets or broken configs. |
+| **Smart Auto-Fix** | Automatically repairs common issues (`.gitignore`, `.dockerignore`, generating `.env.example` from `.env` keys, default `tsconfig.json`, and `tailwind.config.js`). |
 
 ---
 
@@ -46,7 +67,10 @@ npx @gucluyumhe/repodoctor
 ```bash
 repodoctor                        # Run diagnosis on current directory
 repodoctor ./path/to/project      # Run diagnosis on a specific repository
+repodoctor init-ci                # Generate GitHub Actions CI workflow (.github/workflows/repodoctor.yml)
+repodoctor init-hook              # Install git pre-commit hook to block secret leaks
 repodoctor --html report.html     # Generate interactive standalone HTML dashboard
+repodoctor --markdown summary.md  # Generate GitHub Flavored Markdown summary for CI
 repodoctor --sarif results.sarif  # Export SARIF 2.1.0 for GitHub Security tab
 repodoctor --fix                  # Apply safe automated fixes
 repodoctor --ci                   # Non-zero exit code on warnings or critical errors
@@ -74,34 +98,45 @@ npx @gucluyumhe/repodoctor --html ./repodoctor-report.html
 
 ## GitHub Actions CI/CD Integration
 
-Add RepoDoctor to your GitHub repository in 1 minute:
+Set up automated pull request scanning in 1 second:
 
-Create `.github/workflows/repodoctor.yml`:
+```bash
+npx @gucluyumhe/repodoctor init-ci
+```
+
+Or manually create `.github/workflows/repodoctor.yml`:
 
 ```yaml
 name: RepoDoctor Health & Security Scan
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 jobs:
-  diagnose:
+  repodoctor:
+    name: RepoDoctor Health & Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Run RepoDoctor
-        run: npx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif
+      - name: Run RepoDoctor Diagnostic Scan
+        run: npx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif --markdown $GITHUB_STEP_SUMMARY
 
-      - name: Upload SARIF to GitHub Security Tab
+      - name: Upload Security SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
@@ -112,9 +147,11 @@ jobs:
 
 ## Smart Auto-Fix Engine (`--fix`)
 
-RepoDoctor can safely repair configuration drift without modifying your application logic:
+RepoDoctor can safely repair configuration drift without touching your core application logic:
 
-- Generates `.env.example` from `.env` keys with masked placeholder values.
+- Generates minimal `tsconfig.json` if TypeScript files exist without a configuration.
+- Creates `tailwind.config.js` if Tailwind is installed in dependencies but unconfigured.
+- Generates `.env.example` from `.env` keys with placeholder values.
 - Creates optimized `.dockerignore` excluding `node_modules`, `.env`, and `.git`.
 - Adds unignored `.env`, `.env.local`, and sensitive certificate/key files (`.pem`, `.key`, `id_rsa`) to `.gitignore`.
 
@@ -140,7 +177,7 @@ npm run typecheck
 # Build with tsup
 npm run build
 
-# Run test suite with Vitest (110 tests)
+# Run test suite with Vitest (132 tests)
 npm test
 ```
 

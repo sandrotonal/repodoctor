@@ -97,4 +97,40 @@ describe("repodoctor CLI", () => {
       await removeFixture(root);
     }
   });
+
+  it("installs git hook with init-hook command", async () => {
+    const root = await makeFixture({ ".git": "dir" });
+    try {
+      const { stdout, code } = await runCli(["init-hook", root]);
+      expect(code).toBe(0);
+      expect(stdout).toContain("RepoDoctor pre-commit hook successfully installed");
+    } finally {
+      await removeFixture(root);
+    }
+  });
+
+  it("exports Markdown report with --markdown", async () => {
+    const root = await makeFixture({ "package.json": JSON.stringify({ name: "markdown-test" }) });
+    const mdPath = path.join(root, "summary.md");
+    try {
+      const { code } = await runCli([root, "--markdown", mdPath]);
+      expect(code).toBe(0);
+      const content = await readFile(mdPath, "utf8");
+      expect(content).toContain("# 🩺 RepoDoctor Diagnostic Report");
+      expect(content).toContain("| **Health Score** |");
+    } finally {
+      await removeFixture(root);
+    }
+  });
+
+  it("installs CI workflow with init-ci command", async () => {
+    const root = await makeFixture({ "package.json": JSON.stringify({ name: "ci-test" }) });
+    try {
+      const { stdout, code } = await runCli(["init-ci", root]);
+      expect(code).toBe(0);
+      expect(stdout).toContain("Successfully generated GitHub Actions workflow");
+    } finally {
+      await removeFixture(root);
+    }
+  });
 });

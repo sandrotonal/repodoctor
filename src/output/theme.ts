@@ -20,8 +20,23 @@ export function gradient(text: string, from: RGB, to: RGB): string {
     .join("");
 }
 
+const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_REGEX, "");
+}
+
 export function visibleLength(text: string): number {
-  return text.replace(/\x1b\[[0-9;]*m/g, "").length;
+  return stripAnsi(text).length;
+}
+
+export function padAnsi(text: string, width: number): string {
+  const currentLen = visibleLength(text);
+  const diff = width - currentLen;
+  if (diff <= 0) {
+    return text;
+  }
+  return text + " ".repeat(diff);
 }
 
 export function centerText(text: string, width: number): string {

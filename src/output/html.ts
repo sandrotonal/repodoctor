@@ -37,6 +37,10 @@ function severityBg(severity: Severity): string {
 
 function categoryOf(id: string): string {
   if (id.startsWith("secret") || id.startsWith("security")) return "Security";
+  if (id.startsWith("packages.")) return "Packages";
+  if (id.startsWith("ci.")) return "CI/CD";
+  if (id.startsWith("framework")) return "Frameworks";
+  if (id.startsWith("monorepo")) return "Monorepo";
   if (id.startsWith("typescript")) return "TypeScript";
   if (id.startsWith("docker")) return "Docker";
   if (id.startsWith("node")) return "Node.js";

@@ -75,6 +75,50 @@ async function ensureDockerignore(root: string): Promise<boolean> {
   return true;
 }
 
+async function createMinimalTsConfig(root: string): Promise<boolean> {
+  const tsconfigPath = path.join(root, "tsconfig.json");
+  const existing = await readOr(root, "tsconfig.json");
+  if (existing !== null) return false;
+
+  const content =
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ES2022",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          esModuleInterop: true,
+          strict: true,
+          skipLibCheck: true,
+        },
+        include: ["src/**/*"],
+      },
+      null,
+      2,
+    ) + "\n";
+
+  await writeFile(tsconfigPath, content, "utf8");
+  return true;
+}
+
+async function createMinimalTailwindConfig(root: string): Promise<boolean> {
+  const configFile = path.join(root, "tailwind.config.js");
+  const existing = await readOr(root, "tailwind.config.js");
+  if (existing !== null) return false;
+
+  const content = `/** @type {import('tailwindcss').Config} */
+export default {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx,vue,svelte}"],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
+`;
+  await writeFile(configFile, content, "utf8");
+  return true;
+}
+
 export async function applyFixes(root: string, diagnostics: Diagnostic[]): Promise<FixReport> {
   const applied: string[] = [];
 
@@ -97,6 +141,14 @@ export async function applyFixes(root: string, diagnostics: Diagnostic[]): Promi
     ) {
       if (await ensureDockerignore(root)) {
         applied.push("Configured .dockerignore to exclude node_modules, .env, and .git");
+      }
+    } else if (diagnostic.id === "typescript.missing-config") {
+      if (await createMinimalTsConfig(root)) {
+        applied.push("Created default tsconfig.json");
+      }
+    } else if (diagnostic.id === "framework.tailwind.missing-config") {
+      if (await createMinimalTailwindConfig(root)) {
+        applied.push("Created default tailwind.config.js");
       }
     } else if (diagnostic.id.startsWith("security.exposed-file:")) {
       const fileName = diagnostic.id.split(":")[1];

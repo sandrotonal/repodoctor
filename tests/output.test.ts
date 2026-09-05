@@ -104,4 +104,15 @@ describe("theme helpers", () => {
     expect(lines.length).toBeGreaterThan(1);
     expect(lines.every((line) => line.length <= 10)).toBe(true);
   });
+
+  it("padAnsi pads based on visible characters, ignoring ANSI escape codes", async () => {
+    const { padAnsi, stripAnsi, visibleLength } = await import("../src/output/theme.js");
+    const coloredText = "\x1b[32m[OK]\x1b[39m Ready";
+    expect(stripAnsi(coloredText)).toBe("[OK] Ready");
+    expect(visibleLength(coloredText)).toBe(10);
+
+    const padded = padAnsi(coloredText, 20);
+    expect(visibleLength(padded)).toBe(20);
+    expect(stripAnsi(padded)).toBe("[OK] Ready          ");
+  });
 });

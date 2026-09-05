@@ -1,6 +1,6 @@
 {
   "name": "@gucluyumhe/repodoctor",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "Diagnose your project health, secret leaks, and misconfigurations before you waste time debugging.",
   "type": "module",
   "license": "MIT",

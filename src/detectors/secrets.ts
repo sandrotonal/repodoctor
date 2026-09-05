@@ -101,6 +101,24 @@ const SECRET_RULES: SecretRule[] = [
     severity: "critical",
   },
   {
+    id: "secret.google-ai",
+    name: "Google Gemini / Cloud API Key",
+    pattern: /\b(AIzaSy[a-zA-Z0-9_-]{30,35})\b/g,
+    severity: "critical",
+  },
+  {
+    id: "secret.anthropic-key",
+    name: "Anthropic Claude API Key",
+    pattern: /\b(sk-ant-api03-[a-zA-Z0-9_-]{86,})\b/g,
+    severity: "critical",
+  },
+  {
+    id: "secret.huggingface-token",
+    name: "HuggingFace Access Token",
+    pattern: /\b(hf_[a-zA-Z0-9]{34,})\b/g,
+    severity: "critical",
+  },
+  {
     id: "secret.github-token",
     name: "GitHub Token",
     pattern: /\b(ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{22,82})\b/g,
@@ -116,6 +134,24 @@ const SECRET_RULES: SecretRule[] = [
     id: "secret.slack-token",
     name: "Slack Token / Webhook",
     pattern: /\b(xox[baprs]-[0-9a-zA-Z]{10,48})\b|https:\/\/hooks\.slack\.com\/services\/T[a-zA-Z0-9_]+\/B[a-zA-Z0-9_]+\/[a-zA-Z0-9_]+/g,
+    severity: "critical",
+  },
+  {
+    id: "secret.discord-token",
+    name: "Discord Bot Token",
+    pattern: /\b([MN][A-Za-z\d]{23,}\.[\w-]{6}\.[\w-]{27,})\b/g,
+    severity: "critical",
+  },
+  {
+    id: "secret.telegram-token",
+    name: "Telegram Bot Token",
+    pattern: /\b(\d{8,10}:[a-zA-Z0-9_-]{32,38})\b/g,
+    severity: "critical",
+  },
+  {
+    id: "secret.jwt-token",
+    name: "JSON Web Token (JWT)",
+    pattern: /\b(eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)\b/g,
     severity: "critical",
   },
   {

@@ -88,4 +88,30 @@ describe("Secrets & Security Detector", () => {
       await removeFixture(fixture);
     }
   });
+
+  it("detects Google Gemini, HuggingFace, and Telegram tokens", async () => {
+    const fixture = await makeFixture({
+      "src/ai.ts": `
+        const geminiKey = "AIzaSyAbc123Def456Ghi789Jkl012Mno345Pq";
+        const hfToken = "hf_abcdefghijklmnopqrstuvwxyz01234567";
+        const tgBot = "123456789:ABCdefGHIjklMNOpqrsTUVwxyz123456789";
+      `,
+    });
+
+    try {
+      const scan = await scanSecrets(fixture, null);
+      expect(scan.secretFindings.length).toBe(3);
+
+      const gemini = scan.secretFindings.find((f) => f.ruleId === "secret.google-ai");
+      expect(gemini).toBeDefined();
+
+      const hf = scan.secretFindings.find((f) => f.ruleId === "secret.huggingface-token");
+      expect(hf).toBeDefined();
+
+      const tg = scan.secretFindings.find((f) => f.ruleId === "secret.telegram-token");
+      expect(tg).toBeDefined();
+    } finally {
+      await removeFixture(fixture);
+    }
+  });
 });

@@ -8,6 +8,7 @@ import { renderScan, type ScanStyle } from "./output/terminal.js";
 import { renderJson } from "./output/json.js";
 import { generateHtmlReport } from "./output/html.js";
 import { generateSarifReport } from "./output/sarif.js";
+import { generateMarkdownReport } from "./output/markdown.js";
 import { applyFixes } from "./fixes.js";
 import type { ScanAnimationHandle } from "./output/animate.js";
 import { createScanAnimation } from "./output/animate.js";
@@ -21,6 +22,7 @@ interface CliOptions {
   style?: string;
   html?: string;
   sarif?: string;
+  markdown?: string;
 }
 
 export function run(argv: string[] = process.argv): void {
@@ -37,6 +39,7 @@ export function run(argv: string[] = process.argv): void {
     .option("--style <mode>", "output style: plain, panel or auto (default: auto)")
     .option("--html <file>", "export interactive HTML report to file")
     .option("--sarif <file>", "export SARIF 2.1.0 report for GitHub Code Scanning")
+    .option("--markdown <file>", "export GitHub Flavored Markdown summary to file")
     .action(async (dir: string, options: CliOptions) => {
       try {
         const style = resolveStyle(options.style);
@@ -65,6 +68,13 @@ export function run(argv: string[] = process.argv): void {
           console.error(chalk.green(`SARIF report saved to: ${outputPath}`));
         }
 
+        if (options.markdown) {
+          const mdContent = generateMarkdownReport(result);
+          const outputPath = resolve(process.cwd(), options.markdown);
+          await writeFile(outputPath, mdContent, "utf8");
+          console.error(chalk.green(`Markdown report saved to: ${outputPath}`));
+        }
+
         if (options.json) {
           renderJson(result);
         } else {
@@ -78,6 +88,47 @@ export function run(argv: string[] = process.argv): void {
         }
       } catch {
         console.error(chalk.red("Unable to analyze the project directory."));
+        process.exitCode = 1;
+      }
+    });
+
+  program
+    .command("init-hook")
+    .description("install a git pre-commit hook that runs repodoctor before each commit")
+    .argument("[dir]", "project root directory", process.cwd())
+    .action(async (dir: string) => {
+      try {
+        const { installPreCommitHook } = await import("./hooks.js");
+        const res = await installPreCommitHook(resolve(dir));
+        if (res.success) {
+          console.log(chalk.green(res.message));
+        } else {
+          console.error(chalk.red(res.message));
+          process.exitCode = 1;
+        }
+      } catch {
+        console.error(chalk.red("Failed to install pre-commit hook."));
+        process.exitCode = 1;
+      }
+    });
+
+  program
+    .command("init-ci")
+    .description("install GitHub Actions CI workflow to automate RepoDoctor diagnostics")
+    .argument("[dir]", "project root directory", process.cwd())
+    .option("-f, --force", "overwrite existing repodoctor.yml workflow if present")
+    .action(async (dir: string, cmdOptions: { force?: boolean }) => {
+      try {
+        const { installCiWorkflow } = await import("./ci-generator.js");
+        const res = await installCiWorkflow(resolve(dir), { force: cmdOptions.force });
+        if (res.success) {
+          console.log(chalk.green(res.message));
+        } else {
+          console.error(chalk.red(res.message));
+          process.exitCode = 1;
+        }
+      } catch {
+        console.error(chalk.red("Failed to install CI workflow."));
         process.exitCode = 1;
       }
     });
