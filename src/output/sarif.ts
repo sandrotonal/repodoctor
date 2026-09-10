@@ -93,23 +93,22 @@ export function generateSarifReport(scanResult: ScanResult, version: string = "0
       message: { text: messageText },
     };
 
-    if (fileUri) {
-      resultItem.locations = [
-        {
-          physicalLocation: {
-            artifactLocation: { uri: fileUri.replace(/\\/g, "/") },
-            ...(lineNum
-              ? {
-                  region: {
-                    startLine: lineNum,
-                    ...(columnNum ? { startColumn: columnNum } : {}),
-                  },
-                }
-              : {}),
+    // GitHub Code Scanning requires at least one location per result.
+    // Fall back to project root when no specific file is available.
+    const resolvedUri = fileUri ? fileUri.replace(/\\/g, "/") : ".";
+    const resolvedLine = lineNum ?? 1;
+
+    resultItem.locations = [
+      {
+        physicalLocation: {
+          artifactLocation: { uri: resolvedUri },
+          region: {
+            startLine: resolvedLine,
+            ...(columnNum ? { startColumn: columnNum } : {}),
           },
         },
-      ];
-    }
+      },
+    ];
 
     results.push(resultItem);
   }
