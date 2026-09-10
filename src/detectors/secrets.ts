@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import type { DiagnosticConfidence, PackageJsonData } from "../core/types.js";
+import type { DiagnosticConfidence, PackageJsonData, SkippedReasons } from "../core/types.js";
 
 export type SecretConfidence = DiagnosticConfidence;
 
@@ -35,7 +35,10 @@ export interface SecurityScan {
   filesDiscovered: number;
   filesScanned: number;
   filesSkipped: number;
+  bytesScanned: number;
+  peakMemoryMb: number;
   scanLimitReached: boolean;
+  skippedReasons: SkippedReasons;
 }
 
 export const KNOWN_DUMMY_CREDENTIALS = new Set([
@@ -158,6 +161,41 @@ const SKIP_FILES = new Set([
   ".env.example",
   "report.html",
   "results.sarif",
+  "repodoctor.sarif",
+]);
+
+const KNOWN_BINARY_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".ico",
+  ".svg",
+  ".webp",
+  ".avif",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".eot",
+  ".otf",
+  ".pdf",
+  ".zip",
+  ".tar",
+  ".gz",
+  ".7z",
+  ".rar",
+  ".exe",
+  ".dll",
+  ".so",
+  ".dylib",
+  ".bin",
+  ".mp3",
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".webm",
+  ".sqlite",
+  ".db",
 ]);
 
 const SCANNABLE_EXTENSIONS = new Set([
@@ -326,6 +364,7 @@ interface WalkResult {
   filesDiscovered: number;
   filesSkipped: number;
   scanLimitReached: boolean;
+  skippedReasons: SkippedReasons;
 }
 
 async function walkSourceFiles(root: string, maxFiles: number): Promise<WalkResult> {
@@ -333,6 +372,14 @@ async function walkSourceFiles(root: string, maxFiles: number): Promise<WalkResu
   let filesDiscovered = 0;
   let filesSkipped = 0;
   let scanLimitReached = false;
+  const skippedReasons: SkippedReasons = {
+    ignored: 0,
+    binary: 0,
+    tooLarge: 0,
+    permissionDenied: 0,
+    unsupportedExtension: 0,
+    scanLimit: 0,
+  };
 
   async function visit(dir: string): Promise<void> {
     if (results.length >= maxFiles) {
@@ -342,7 +389,10 @@ async function walkSourceFiles(root: string, maxFiles: number): Promise<WalkResu
     let entries;
     try {
       entries = await readdir(dir, { withFileTypes: true });
-    } catch {
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "code" in err && (err.code === "EACCES" || err.code === "EPERM")) {
+        skippedReasons.permissionDenied += 1;
+      }
       return;
     }
     for (const entry of entries) {
@@ -351,6 +401,7 @@ async function walkSourceFiles(root: string, maxFiles: number): Promise<WalkResu
         if (entry.isFile()) {
           filesDiscovered += 1;
           filesSkipped += 1;
+          skippedReasons.scanLimit += 1;
         }
         continue;
       }
@@ -369,23 +420,28 @@ async function walkSourceFiles(root: string, maxFiles: number): Promise<WalkResu
           name.endsWith(".spec.js")
         ) {
           filesSkipped += 1;
+          skippedReasons.ignored += 1;
           continue;
         }
         const ext = path.extname(entry.name).toLowerCase();
-        if (
-          !SKIP_FILES.has(entry.name) &&
-          (SCANNABLE_EXTENSIONS.has(ext) || entry.name.startsWith(".env"))
-        ) {
+        if (KNOWN_BINARY_EXTENSIONS.has(ext)) {
+          filesSkipped += 1;
+          skippedReasons.binary += 1;
+        } else if (SKIP_FILES.has(entry.name)) {
+          filesSkipped += 1;
+          skippedReasons.ignored += 1;
+        } else if (SCANNABLE_EXTENSIONS.has(ext) || entry.name.startsWith(".env")) {
           results.push(full);
         } else {
           filesSkipped += 1;
+          skippedReasons.unsupportedExtension += 1;
         }
       }
     }
   }
 
   await visit(root);
-  return { files: results, filesDiscovered, filesSkipped, scanLimitReached };
+  return { files: results, filesDiscovered, filesSkipped, scanLimitReached, skippedReasons };
 }
 
 export async function scanSecrets(
@@ -418,20 +474,33 @@ export async function scanSecrets(
   // 2. Scan source files
   const walk = await walkSourceFiles(root, maxFiles);
   let filesScanned = 0;
-  let skippedBytes = 0;
+  let bytesScanned = 0;
 
   for (const file of walk.files) {
     let text: string;
     try {
       const buffer = await readFile(file);
       if (buffer.byteLength > maxFileSize) {
-        skippedBytes += 1;
+        walk.filesSkipped += 1;
+        walk.skippedReasons.tooLarge += 1;
+        continue;
+      }
+      // Check for null bytes to detect non-text binaries
+      if (buffer.subarray(0, 8000).includes(0)) {
+        walk.filesSkipped += 1;
+        walk.skippedReasons.binary += 1;
         continue;
       }
       text = buffer.toString("utf8");
+      bytesScanned += buffer.byteLength;
       filesScanned += 1;
-    } catch {
-      skippedBytes += 1;
+    } catch (err: unknown) {
+      walk.filesSkipped += 1;
+      if (err && typeof err === "object" && "code" in err && (err.code === "EACCES" || err.code === "EPERM")) {
+        walk.skippedReasons.permissionDenied += 1;
+      } else {
+        walk.skippedReasons.binary += 1;
+      }
       continue;
     }
 
@@ -467,12 +536,17 @@ export async function scanSecrets(
     }
   }
 
+  const peakMemoryMb = Math.round((process.memoryUsage().rss / (1024 * 1024)) * 10) / 10;
+
   return {
     secretFindings,
     dangerousScripts,
     filesDiscovered: walk.filesDiscovered,
     filesScanned,
-    filesSkipped: walk.filesSkipped + skippedBytes,
+    filesSkipped: walk.filesSkipped,
+    bytesScanned,
+    peakMemoryMb,
     scanLimitReached: walk.scanLimitReached,
+    skippedReasons: walk.skippedReasons,
   };
 }

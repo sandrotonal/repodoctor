@@ -310,7 +310,7 @@ export function generateHtmlReport(result: ScanResult): string {
         ${
           result.coverage
             ? `<p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-dim);">
-                Coverage: <strong>${result.coverage.filesScanned}</strong> files scanned (${result.coverage.filesSkipped} skipped) in <strong>${result.coverage.durationMs}ms</strong>
+                Coverage: <strong>${result.coverage.filesScanned}</strong> files scanned (${result.coverage.bytesScanned ? `${(result.coverage.bytesScanned / 1024).toFixed(1)} KB, ` : ""}${result.coverage.filesSkipped} skipped${result.coverage.skippedReasons ? ` - ${result.coverage.skippedReasons.ignored} ignored, ${result.coverage.skippedReasons.binary} binary, ${result.coverage.skippedReasons.tooLarge} too large` : ""}) in <strong>${result.coverage.durationMs}ms</strong>
               </p>`
             : ""
         }

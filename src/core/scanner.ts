@@ -142,6 +142,19 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
     });
   }
 
+  if (ignoreConfig.syntaxErrors && ignoreConfig.syntaxErrors.length > 0) {
+    for (const err of ignoreConfig.syntaxErrors) {
+      diagnostics.push({
+        id: "ignore.syntax-error",
+        severity: "warning",
+        title: `Syntax error in .repodoctorignore (line ${err.line})`,
+        message: `${err.error}: "${err.raw}".`,
+        recommendation: "Ensure each rule uses '<rule-id>:<file-pattern>' or a valid glob pattern.",
+        category: "reliability",
+      });
+    }
+  }
+
   // 2. Assign deterministic fingerprints
   for (const d of diagnostics) {
     if (!d.fingerprint) {
@@ -151,7 +164,7 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
 
   // 3. Apply baseline if present
   if (options.baseline) {
-    const { newFindings, baselineMatchedCount } = filterBaselineDiagnostics(diagnostics, options.baseline);
+    const { newFindings, baselineMatchedCount, staleFindings } = filterBaselineDiagnostics(diagnostics, options.baseline);
     if (options.newOnly) {
       diagnostics = newFindings;
     }
@@ -161,6 +174,17 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
         severity: "info",
         title: "Baseline active",
         message: `${baselineMatchedCount} known baseline issue(s) suppressed.`,
+        category: "reliability",
+      });
+    }
+    if (staleFindings && staleFindings.length > 0) {
+      diagnostics.push({
+        id: "baseline.stale",
+        severity: "info",
+        title: "Stale baseline findings detected",
+        message: `${staleFindings.length} issue(s) recorded in baseline are no longer present in repository.`,
+        recommendation: "Run 'repodoctor --baseline <file> --update-baseline' to refresh the baseline snapshot.",
+        category: "reliability",
       });
     }
   }
@@ -171,8 +195,18 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
     filesDiscovered: security.filesDiscovered ?? 0,
     filesScanned: security.filesScanned ?? 0,
     filesSkipped: security.filesSkipped ?? 0,
+    bytesScanned: security.bytesScanned ?? 0,
+    peakMemoryMb: security.peakMemoryMb ?? 0,
     scanLimitReached: !!security.scanLimitReached,
     durationMs,
+    skippedReasons: security.skippedReasons ?? {
+      ignored: 0,
+      binary: 0,
+      tooLarge: 0,
+      permissionDenied: 0,
+      unsupportedExtension: 0,
+      scanLimit: 0,
+    },
   };
 
   return {

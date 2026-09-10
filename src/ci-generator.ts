@@ -12,21 +12,59 @@ export interface CiInstallResult {
 export interface CiInstallOptions {
   force?: boolean;
   packageManager?: PackageManager | "auto";
+  pinActions?: boolean;
 }
 
-export function generateWorkflowContent(pm: PackageManager): string {
+export const PINNED_ACTIONS: Record<string, { sha: string; versionComment: string }> = {
+  "actions/checkout@v4": {
+    sha: "b4ffde65f46336ab88eb53be808477a3936bae11",
+    versionComment: "# v4.1.1",
+  },
+  "actions/setup-node@v4": {
+    sha: "60edb5dd545a775178f52524783378180af0d1f8",
+    versionComment: "# v4.0.2",
+  },
+  "github/codeql-action/upload-sarif@v3": {
+    sha: "4f3212b61783c3c68e8309a0f18a699764811cda",
+    versionComment: "# v3.26.2",
+  },
+  "pnpm/action-setup@v3": {
+    sha: "fe02b34f77f8bc70b72253e3436062835fa17884",
+    versionComment: "# v3.0.0",
+  },
+  "oven-sh/setup-bun@v2": {
+    sha: "4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5",
+    versionComment: "# v2.0.1",
+  },
+};
+
+export function resolveActionRef(actionTag: string, pinActions: boolean = false): string {
+  if (!pinActions) return actionTag;
+  const match = PINNED_ACTIONS[actionTag];
+  if (!match) return actionTag;
+  const baseName = actionTag.split("@")[0]!;
+  return `${baseName}@${match.sha} ${match.versionComment}`;
+}
+
+export function generateWorkflowContent(pm: PackageManager, pinActions: boolean = false): string {
   let setupSteps = "";
   let runCommand = "";
+
+  const checkoutAction = resolveActionRef("actions/checkout@v4", pinActions);
+  const setupNodeAction = resolveActionRef("actions/setup-node@v4", pinActions);
+  const uploadSarifAction = resolveActionRef("github/codeql-action/upload-sarif@v3", pinActions);
+  const pnpmSetupAction = resolveActionRef("pnpm/action-setup@v3", pinActions);
+  const bunSetupAction = resolveActionRef("oven-sh/setup-bun@v2", pinActions);
 
   switch (pm) {
     case "pnpm":
       setupSteps = `      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: ${pnpmSetupAction}
         with:
           version: 9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: ${setupNodeAction}
         with:
           node-version: 20
           cache: pnpm`;
@@ -35,7 +73,7 @@ export function generateWorkflowContent(pm: PackageManager): string {
 
     case "yarn":
       setupSteps = `      - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: ${setupNodeAction}
         with:
           node-version: 20
           cache: yarn`;
@@ -44,7 +82,7 @@ export function generateWorkflowContent(pm: PackageManager): string {
 
     case "bun":
       setupSteps = `      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: ${bunSetupAction}
         with:
           bun-version: latest`;
       runCommand = "bunx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif";
@@ -53,7 +91,7 @@ export function generateWorkflowContent(pm: PackageManager): string {
     case "npm":
     default:
       setupSteps = `      - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: ${setupNodeAction}
         with:
           node-version: 20
           cache: npm`;
@@ -79,7 +117,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: ${checkoutAction}
 
 ${setupSteps}
 
@@ -87,7 +125,7 @@ ${setupSteps}
         run: ${runCommand}
 
       - name: Upload Security SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: ${uploadSarifAction}
         if: always() && hashFiles('repodoctor.sarif') != ''
         with:
           sarif_file: repodoctor.sarif
@@ -126,14 +164,14 @@ export async function installCiWorkflow(
       }
     }
 
-    const workflowContent = generateWorkflowContent(pm);
+    const workflowContent = generateWorkflowContent(pm, options.pinActions ?? false);
 
     await mkdir(workflowsDir, { recursive: true });
     await writeFile(targetFile, workflowContent, "utf8");
 
     return {
       success: true,
-      message: `Successfully generated GitHub Actions workflow (${pm}) at .github/workflows/repodoctor.yml`,
+      message: `Successfully generated GitHub Actions workflow (${pm}${options.pinActions ? ", pinned actions" : ""}) at .github/workflows/repodoctor.yml`,
       workflowPath: targetFile,
     };
   } catch {

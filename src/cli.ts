@@ -13,6 +13,7 @@ import { applyFixes } from "./fixes.js";
 import type { ScanAnimationHandle } from "./output/animate.js";
 import { createScanAnimation } from "./output/animate.js";
 import { loadBaseline, saveBaseline } from "./core/baseline.js";
+import { EXIT_CODES, shouldFailScan, type FailOnThreshold } from "./core/exit-codes.js";
 
 const { version } = pkg;
 
@@ -31,6 +32,8 @@ interface CliOptions {
   newOnly?: boolean;
   maxFiles?: string;
   maxFileSize?: string;
+  failOn?: string;
+  strict?: boolean;
 }
 
 export function run(argv: string[] = process.argv): void {
@@ -55,8 +58,18 @@ export function run(argv: string[] = process.argv): void {
     .option("--new-only", "report only new findings not recorded in baseline")
     .option("--max-files <number>", "maximum number of files to scan (default: 5000)")
     .option("--max-file-size <kb>", "maximum file size to scan in KB (default: 1024)")
+    .option("--fail-on <severity>", "fail threshold: critical, warning, or info")
+    .option("--strict", "strict mode; exits non-zero on any warnings or critical findings")
     .action(async (dir: string, options: CliOptions) => {
       try {
+        if (options.failOn && !["critical", "warning", "info"].includes(options.failOn.toLowerCase())) {
+          console.error(
+            chalk.red(`Invalid --fail-on value: "${options.failOn}". Allowed values: critical, warning, info`),
+          );
+          process.exitCode = EXIT_CODES.CLI_USAGE_ERROR;
+          return;
+        }
+
         const style = resolveStyle(options.style);
 
         const baselinePath = options.baseline ? resolve(process.cwd(), options.baseline) : null;
@@ -76,7 +89,21 @@ export function run(argv: string[] = process.argv): void {
           maxFileSize,
         };
 
-        let result = await scanWithAnimation(dir, style, scanOpts);
+        let result;
+        try {
+          result = await scanWithAnimation(dir, style, scanOpts);
+        } catch (scanErr) {
+          console.error(chalk.red("Unable to analyze the project directory:"), scanErr instanceof Error ? scanErr.message : String(scanErr));
+          process.exitCode = EXIT_CODES.SCAN_ABORTED_IO;
+          return;
+        }
+
+        const missingDirDiag = result.diagnostics.find((d) => d.id === "project.directory-missing");
+        if (missingDirDiag) {
+          console.error(chalk.red("Unable to analyze the project directory:"), missingDirDiag.message ?? "Directory does not exist");
+          process.exitCode = EXIT_CODES.SCAN_ABORTED_IO;
+          return;
+        }
 
         if (baselinePath && options.updateBaseline) {
           await saveBaseline(baselinePath, result.diagnostics);
@@ -103,25 +130,42 @@ export function run(argv: string[] = process.argv): void {
           }
         }
 
+        let exportFailed = false;
+
         if (options.html) {
-          const htmlContent = generateHtmlReport(result);
-          const outputPath = resolve(process.cwd(), options.html);
-          await writeFile(outputPath, htmlContent, "utf8");
-          console.error(chalk.green(`HTML report saved to: ${outputPath}`));
+          try {
+            const htmlContent = generateHtmlReport(result);
+            const outputPath = resolve(process.cwd(), options.html);
+            await writeFile(outputPath, htmlContent, "utf8");
+            console.error(chalk.green(`HTML report saved to: ${outputPath}`));
+          } catch (err) {
+            console.error(chalk.red(`Failed to export HTML report: ${err instanceof Error ? err.message : String(err)}`));
+            exportFailed = true;
+          }
         }
 
         if (options.sarif) {
-          const sarifContent = generateSarifReport(result, version);
-          const outputPath = resolve(process.cwd(), options.sarif);
-          await writeFile(outputPath, sarifContent, "utf8");
-          console.error(chalk.green(`SARIF report saved to: ${outputPath}`));
+          try {
+            const sarifContent = generateSarifReport(result, version);
+            const outputPath = resolve(process.cwd(), options.sarif);
+            await writeFile(outputPath, sarifContent, "utf8");
+            console.error(chalk.green(`SARIF report saved to: ${outputPath}`));
+          } catch (err) {
+            console.error(chalk.red(`Failed to export SARIF report: ${err instanceof Error ? err.message : String(err)}`));
+            exportFailed = true;
+          }
         }
 
         if (options.markdown) {
-          const mdContent = generateMarkdownReport(result);
-          const outputPath = resolve(process.cwd(), options.markdown);
-          await writeFile(outputPath, mdContent, "utf8");
-          console.error(chalk.green(`Markdown report saved to: ${outputPath}`));
+          try {
+            const mdContent = generateMarkdownReport(result);
+            const outputPath = resolve(process.cwd(), options.markdown);
+            await writeFile(outputPath, mdContent, "utf8");
+            console.error(chalk.green(`Markdown report saved to: ${outputPath}`));
+          } catch (err) {
+            console.error(chalk.red(`Failed to export Markdown report: ${err instanceof Error ? err.message : String(err)}`));
+            exportFailed = true;
+          }
         }
 
         if (options.json) {
@@ -130,14 +174,25 @@ export function run(argv: string[] = process.argv): void {
           renderScan(result, style);
         }
 
-        const hasCritical = result.diagnostics.some((diagnostic) => diagnostic.severity === "critical");
-        const hasWarning = result.diagnostics.some((diagnostic) => diagnostic.severity === "warning");
-        if (options.ci ? hasCritical || hasWarning : hasCritical) {
-          process.exitCode = 1;
+        if (exportFailed) {
+          process.exitCode = EXIT_CODES.EXPORT_FAILED;
+          return;
         }
-      } catch {
-        console.error(chalk.red("Unable to analyze the project directory."));
-        process.exitCode = 1;
+
+        const fail = shouldFailScan(result.diagnostics, {
+          ci: options.ci,
+          strict: options.strict,
+          failOn: options.failOn as FailOnThreshold | undefined,
+        });
+
+        if (fail) {
+          process.exitCode = EXIT_CODES.FINDINGS_THRESHOLD;
+        } else {
+          process.exitCode = EXIT_CODES.SUCCESS;
+        }
+      } catch (err) {
+        console.error(chalk.red("Unexpected error occurred:"), err instanceof Error ? err.message : String(err));
+        process.exitCode = EXIT_CODES.SCAN_ABORTED_IO;
       }
     });
 
@@ -167,12 +222,14 @@ export function run(argv: string[] = process.argv): void {
     .argument("[dir]", "project root directory", process.cwd())
     .option("-f, --force", "overwrite existing repodoctor.yml workflow if present")
     .option("-p, --package-manager <pm>", "package manager to use (npm, pnpm, yarn, bun, auto)", "auto")
-    .action(async (dir: string, cmdOptions: { force?: boolean; packageManager?: string }) => {
+    .option("--pin-actions", "pin third-party GitHub Actions to verified immutable commit SHAs")
+    .action(async (dir: string, cmdOptions: { force?: boolean; packageManager?: string; pinActions?: boolean }) => {
       try {
         const { installCiWorkflow } = await import("./ci-generator.js");
         const res = await installCiWorkflow(resolve(dir), {
           force: cmdOptions.force,
-          packageManager: (cmdOptions.packageManager as any) ?? "auto",
+          packageManager: (cmdOptions.packageManager as import("./core/types.js").PackageManager | "auto") ?? "auto",
+          pinActions: cmdOptions.pinActions,
         });
         if (res.success) {
           console.log(chalk.green(res.message));
@@ -201,6 +258,52 @@ export function run(argv: string[] = process.argv): void {
         }
       } catch {
         console.error(chalk.red("Failed to create .repodoctorignore."));
+        process.exitCode = 1;
+      }
+    });
+
+  program
+    .command("benchmark")
+    .description("measure scan throughput, memory usage, and file metrics on a repository")
+    .argument("[dir]", "directory to benchmark", process.cwd())
+    .option("--json", "output benchmark metrics as pure JSON")
+    .option("--max-files <number>", "maximum files to scan")
+    .option("--max-file-size <kb>", "maximum file size in KB")
+    .action(async (dir: string, cmdOptions: { json?: boolean; maxFiles?: string; maxFileSize?: string }, command: Command) => {
+      try {
+        const { runBenchmark } = await import("./core/benchmark.js");
+        const resolvedOpts = command.optsWithGlobals<{ json?: boolean; maxFiles?: string; maxFileSize?: string }>();
+        const isJson = Boolean(cmdOptions.json || resolvedOpts.json);
+        const maxFilesStr = cmdOptions.maxFiles || resolvedOpts.maxFiles;
+        const maxFileSizeStr = cmdOptions.maxFileSize || resolvedOpts.maxFileSize;
+        const maxFiles = maxFilesStr ? parseInt(maxFilesStr, 10) : undefined;
+        const maxFileSize = maxFileSizeStr ? parseInt(maxFileSizeStr, 10) * 1024 : undefined;
+
+        const res = await runBenchmark(resolve(dir), { maxFiles, maxFileSize });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return;
+        }
+
+        console.log(chalk.bold.cyan("\nRepoDoctor Benchmark Report\n"));
+        console.log(`Target:         ${chalk.white(res.targetDir)}`);
+        console.log(`Discovered:     ${chalk.yellow(res.filesDiscovered)} files`);
+        console.log(`Scanned:        ${chalk.green(res.filesScanned)} files (${(res.bytesScanned / 1024).toFixed(1)} KB)`);
+        console.log(`Skipped:        ${chalk.dim(res.filesSkipped)} files`);
+        console.log(`Duration:       ${chalk.cyan(res.durationMs)}ms`);
+        console.log(`Throughput:     ${chalk.bold.green(res.throughputFilesPerSec)} files/sec (${res.throughputMbPerSec} MB/sec)`);
+        console.log(`Peak Memory:    ${chalk.magenta(res.peakMemoryMb)} MB (delta: ${res.memoryDeltaMb} MB)`);
+        console.log(`Limit Reached:  ${res.scanLimitReached ? chalk.red("Yes") : chalk.green("No")}`);
+        console.log("\nSkipped Breakdown:");
+        console.log(`  Ignored:      ${res.skippedReasons.ignored}`);
+        console.log(`  Binary:       ${res.skippedReasons.binary}`);
+        console.log(`  Too Large:    ${res.skippedReasons.tooLarge}`);
+        console.log(`  Unsupported:  ${res.skippedReasons.unsupportedExtension}`);
+        console.log(`  Permission:   ${res.skippedReasons.permissionDenied}`);
+        console.log(`  Scan Limit:   ${res.skippedReasons.scanLimit}\n`);
+      } catch (err) {
+        console.error(chalk.red("Benchmark execution failed:"), err);
         process.exitCode = 1;
       }
     });

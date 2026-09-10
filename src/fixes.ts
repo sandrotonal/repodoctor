@@ -19,7 +19,9 @@ export interface FixOptions {
 
 export function isPathSafe(root: string, targetPath: string): boolean {
   const resolvedRoot = path.resolve(root);
-  const resolvedTarget = path.resolve(targetPath);
+  const resolvedTarget = path.isAbsolute(targetPath)
+    ? path.resolve(targetPath)
+    : path.resolve(resolvedRoot, targetPath);
   return resolvedTarget.startsWith(resolvedRoot + path.sep) || resolvedTarget === resolvedRoot;
 }
 

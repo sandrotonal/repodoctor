@@ -7,8 +7,15 @@ export interface IgnoreRule {
   regex: RegExp;
 }
 
+export interface IgnoreSyntaxError {
+  line: number;
+  raw: string;
+  error: string;
+}
+
 export interface IgnoreConfig {
   rules: IgnoreRule[];
+  syntaxErrors: IgnoreSyntaxError[];
 }
 
 function globToRegex(glob: string): RegExp {
@@ -44,11 +51,26 @@ function globToRegex(glob: string): RegExp {
   return new RegExp(regexStr, "i");
 }
 
+export function validateIgnoreRule(pattern: string): string | null {
+  if (/\*{3,}/.test(pattern)) {
+    return "Consecutive asterisks (***+) are invalid glob syntax";
+  }
+  if (/\[[^\]]*$/.test(pattern)) {
+    return "Unclosed character class bracket '[' in glob pattern";
+  }
+  if (/\{[^}]*$/.test(pattern)) {
+    return "Unclosed brace '{' in glob pattern";
+  }
+  return null;
+}
+
 export function parseIgnoreContent(content: string): IgnoreConfig {
   const rules: IgnoreRule[] = [];
+  const syntaxErrors: IgnoreSyntaxError[] = [];
   const lines = content.split(/\r?\n/);
 
-  for (let rawLine of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const rawLine = lines[lineIndex]!;
     const line = rawLine.trim();
     if (line.length === 0 || line.startsWith("#")) {
       continue;
@@ -58,24 +80,79 @@ export function parseIgnoreContent(content: string): IgnoreConfig {
       const firstColon = line.indexOf(":");
       const ruleId = line.slice(0, firstColon).trim();
       const pattern = line.slice(firstColon + 1).trim();
-      if (ruleId && pattern) {
+
+      if (!ruleId) {
+        syntaxErrors.push({
+          line: lineIndex + 1,
+          raw: line,
+          error: "Missing rule identifier before colon",
+        });
+        continue;
+      }
+
+      if (!pattern) {
+        syntaxErrors.push({
+          line: lineIndex + 1,
+          raw: line,
+          error: "Missing file glob pattern after colon",
+        });
+        continue;
+      }
+
+      const patternErr = validateIgnoreRule(pattern);
+      if (patternErr) {
+        syntaxErrors.push({
+          line: lineIndex + 1,
+          raw: line,
+          error: patternErr,
+        });
+        continue;
+      }
+
+      try {
         rules.push({
           ruleId,
           pattern,
           regex: globToRegex(pattern),
         });
-        continue;
+      } catch (err) {
+        syntaxErrors.push({
+          line: lineIndex + 1,
+          raw: line,
+          error: `Invalid glob pattern: ${err instanceof Error ? err.message : String(err)}`,
+        });
       }
+      continue;
     }
 
-    rules.push({
-      pattern: line,
-      regex: globToRegex(line),
-    });
+    const patternErr = validateIgnoreRule(line);
+    if (patternErr) {
+      syntaxErrors.push({
+        line: lineIndex + 1,
+        raw: line,
+        error: patternErr,
+      });
+      continue;
+    }
+
+    try {
+      rules.push({
+        pattern: line,
+        regex: globToRegex(line),
+      });
+    } catch (err) {
+      syntaxErrors.push({
+        line: lineIndex + 1,
+        raw: line,
+        error: `Invalid glob pattern: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
   }
 
-  return { rules };
+  return { rules, syntaxErrors };
 }
+
+export const parseIgnoreFile = parseIgnoreContent;
 
 export async function loadIgnoreConfig(rootOrFile: string): Promise<IgnoreConfig> {
   let ignorePath = rootOrFile;
@@ -87,7 +164,7 @@ export async function loadIgnoreConfig(rootOrFile: string): Promise<IgnoreConfig
     const text = await readFile(ignorePath, "utf8");
     return parseIgnoreContent(text);
   } catch {
-    return { rules: [] };
+    return { rules: [], syntaxErrors: [] };
   }
 }
 

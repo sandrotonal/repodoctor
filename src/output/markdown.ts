@@ -2,7 +2,12 @@ import type { Diagnostic, ScanResult, Severity } from "../core/types.js";
 
 function cleanCell(text?: string | null): string {
   if (!text) return "-";
-  return text.replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
+  return text
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, " ")
+    .trim();
 }
 
 function severityBadge(severity: Severity): string {

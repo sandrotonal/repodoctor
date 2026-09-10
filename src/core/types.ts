@@ -79,12 +79,24 @@ export interface HealthScore {
   reliabilityBreakdown?: ScoreBreakdown;
 }
 
+export interface SkippedReasons {
+  ignored: number;
+  binary: number;
+  tooLarge: number;
+  permissionDenied: number;
+  unsupportedExtension: number;
+  scanLimit: number;
+}
+
 export interface ScanCoverage {
   filesDiscovered: number;
   filesScanned: number;
   filesSkipped: number;
+  bytesScanned?: number;
+  peakMemoryMb?: number;
   scanLimitReached: boolean;
   durationMs: number;
+  skippedReasons?: SkippedReasons;
 }
 
 export interface ScanResult extends ProjectFacts {

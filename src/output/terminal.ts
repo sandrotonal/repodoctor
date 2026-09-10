@@ -36,9 +36,11 @@ function formatPlainScan(result: ScanResult): string {
       : "";
   lines.push("", `Health score: ${renderHealth(result.health.score, result.health.grade)}${dualSummary}`);
   if (result.coverage) {
+    const bytesStr = formatBytes(result.coverage.bytesScanned);
+    const skipDetails = formatSkipReasons(result.coverage.skippedReasons);
     lines.push(
       chalk.dim(
-        `Coverage: ${result.coverage.filesScanned} files scanned (${result.coverage.filesSkipped} skipped) in ${result.coverage.durationMs}ms`,
+        `Coverage: ${result.coverage.filesScanned} files scanned (${bytesStr}, ${result.coverage.filesSkipped} skipped${skipDetails}) in ${result.coverage.durationMs}ms`,
       ),
     );
   }
@@ -46,16 +48,41 @@ function formatPlainScan(result: ScanResult): string {
   return lines.join("\n");
 }
 
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatSkipReasons(reasons?: import("../core/types.js").SkippedReasons): string {
+  if (!reasons) return "";
+  const parts: string[] = [];
+  if (reasons.ignored) parts.push(`${reasons.ignored} ignored`);
+  if (reasons.binary) parts.push(`${reasons.binary} binary`);
+  if (reasons.tooLarge) parts.push(`${reasons.tooLarge} too large`);
+  if (reasons.unsupportedExtension) parts.push(`${reasons.unsupportedExtension} unsupported`);
+  if (reasons.permissionDenied) parts.push(`${reasons.permissionDenied} permission denied`);
+  if (reasons.scanLimit) parts.push(`${reasons.scanLimit} scan limit`);
+  return parts.length > 0 ? ` [${parts.join(", ")}]` : "";
+}
+
+export function sanitizeAnsi(text?: string | null): string {
+  if (!text) return "";
+  return text.replace(/\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+}
+
 function renderDiagnostic(diagnostic: Diagnostic): string {
+  const safeTitle = sanitizeAnsi(diagnostic.title);
   switch (diagnostic.severity) {
     case "success":
-      return `${chalk.green("[OK]")} ${diagnostic.title}`;
+      return `${chalk.green("[OK]")} ${safeTitle}`;
     case "warning":
-      return `${chalk.yellow("[WARN]")} ${diagnostic.title}`;
+      return `${chalk.yellow("[WARN]")} ${safeTitle}`;
     case "info":
-      return `${chalk.blue("[INFO]")} ${diagnostic.title}`;
+      return `${chalk.blue("[INFO]")} ${safeTitle}`;
     case "critical":
-      return `${chalk.red("[FAIL]")} ${diagnostic.title}`;
+      return `${chalk.red("[FAIL]")} ${safeTitle}`;
   }
 }
 
@@ -151,15 +178,15 @@ function renderCategoryPanel(category: string, diagnostics: Diagnostic[], inner:
   for (const diagnostic of diagnostics) {
     const label = SEVERITY_LABELS[diagnostic.severity];
     const itemColor = SEVERITY_COLORS[diagnostic.severity];
-    const head = `${itemColor(label)} ${diagnostic.title}`;
+    const head = `${itemColor(label)} ${sanitizeAnsi(diagnostic.title)}`;
 
     body.push(...wordWrap(head, inner - 2));
 
     if (diagnostic.message) {
-      body.push(...wordWrap(chalk.dim(diagnostic.message), inner - 2).map((l) => `  ${l}`));
+      body.push(...wordWrap(chalk.dim(sanitizeAnsi(diagnostic.message)), inner - 2).map((l) => `  ${l}`));
     }
     if (diagnostic.recommendation) {
-      body.push(...wordWrap(chalk.dim(`-> ${diagnostic.recommendation}`), inner - 2).map((l) => `  ${l}`));
+      body.push(...wordWrap(chalk.dim(`-> ${sanitizeAnsi(diagnostic.recommendation)}`), inner - 2).map((l) => `  ${l}`));
     }
   }
 
@@ -202,7 +229,9 @@ function renderHealthPanel(result: ScanResult, inner: number): string {
   }
 
   if (result.coverage) {
-    const cov = chalk.dim(`Coverage: ${result.coverage.filesScanned} files scanned (${result.coverage.filesSkipped} skipped) in ${result.coverage.durationMs}ms`);
+    const bytesStr = formatBytes(result.coverage.bytesScanned);
+    const skipDetails = formatSkipReasons(result.coverage.skippedReasons);
+    const cov = chalk.dim(`Coverage: ${result.coverage.filesScanned} files (${bytesStr}, ${result.coverage.filesSkipped} skipped${skipDetails}) in ${result.coverage.durationMs}ms`);
     lines.push(`${chalk.cyan("│")} ${padAnsi(cov, inner - 2)} ${chalk.cyan("│")}`);
   }
 
