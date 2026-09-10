@@ -131,10 +131,17 @@ describe("Security Edge-Cases & Hardening Suite", () => {
   });
 
   describe("Path Traversal & Boundaries", () => {
-    it("isPathSafe correctly detects traversal attempts outside directory", () => {
-      expect(isPathSafe("project", "normal/file.ts")).toBe(true);
-      expect(isPathSafe("project", "../../outside.ts")).toBe(false);
-      expect(isPathSafe("project", "..\\..\\outside.ts")).toBe(false);
+    it("isPathSafe correctly detects traversal attempts outside directory", async () => {
+      const fixture = await makeFixture({
+        "normal/file.ts": "export const x = 1;",
+      });
+      try {
+        expect(isPathSafe(fixture, "normal/file.ts")).toBe(true);
+        expect(isPathSafe(fixture, "../../outside.ts")).toBe(false);
+        expect(isPathSafe(fixture, "..\\..\\outside.ts")).toBe(false);
+      } finally {
+        await removeFixture(fixture);
+      }
     });
   });
 

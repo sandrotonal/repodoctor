@@ -18,11 +18,11 @@ export interface FixOptions {
 }
 
 export function isPathSafe(root: string, targetPath: string): boolean {
-  const resolvedRoot = path.resolve(root);
+  const resolvedRoot = path.resolve(root).replace(/\\/g, "/");
   const resolvedTarget = path.isAbsolute(targetPath)
-    ? path.resolve(targetPath)
-    : path.resolve(resolvedRoot, targetPath);
-  return resolvedTarget.startsWith(resolvedRoot + path.sep) || resolvedTarget === resolvedRoot;
+    ? path.resolve(targetPath).replace(/\\/g, "/")
+    : path.resolve(resolvedRoot, targetPath).replace(/\\/g, "/");
+  return resolvedTarget.startsWith(resolvedRoot + "/") || resolvedTarget === resolvedRoot;
 }
 
 export async function isSymlinkSafe(targetPath: string): Promise<boolean> {

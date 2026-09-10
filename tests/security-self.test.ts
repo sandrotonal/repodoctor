@@ -41,14 +41,20 @@ describe("Phase 5: Safe Auto-Fix Engine & Dry-Run", () => {
   });
 
   it("prevents path traversal attempts in auto-fixes", async () => {
-    const root = "C:/fake/workspace/app";
-    expect(isPathSafe(root, "C:/fake/workspace/app/.env")).toBe(true);
-    expect(isPathSafe(root, "C:/fake/workspace/app/src/index.ts")).toBe(true);
-    expect(isPathSafe(root, "C:/fake/workspace/other/evil.ts")).toBe(false);
-    expect(isPathSafe(root, "C:/Windows/System32/evil.dll")).toBe(false);
-
-    const fixture = await makeFixture({});
+    const fixture = await makeFixture({
+      "src/index.ts": "export const a = 1;",
+    });
     try {
+      // Paths inside root should be safe
+      expect(isPathSafe(fixture, path.join(fixture, ".env"))).toBe(true);
+      expect(isPathSafe(fixture, path.join(fixture, "src/index.ts"))).toBe(true);
+      // Relative paths inside root
+      expect(isPathSafe(fixture, "src/index.ts")).toBe(true);
+      expect(isPathSafe(fixture, ".env")).toBe(true);
+      // Paths outside root should be blocked
+      expect(isPathSafe(fixture, path.resolve(fixture, "..", "evil.ts"))).toBe(false);
+      expect(isPathSafe(fixture, "../../outside.ts")).toBe(false);
+
       const report = await applyFixes(fixture, [
         {
           id: "security.exposed-file:../../../../etc/passwd",
