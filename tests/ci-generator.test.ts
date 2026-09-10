@@ -17,7 +17,7 @@ describe("CI Workflow Generator", () => {
 
       const content = await readFile(path.join(fixture, ".github", "workflows", "repodoctor.yml"), "utf8");
       expect(content).toContain("RepoDoctor Health & Security Scan");
-      expect(content).toContain("npx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif");
+      expect(content).toContain("npx --yes @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif");
       expect(content).toContain("upload-sarif@v3");
     } finally {
       await removeFixture(fixture);

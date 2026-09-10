@@ -57,7 +57,7 @@ export function generateWorkflowContent(pm: PackageManager): string {
         with:
           node-version: 20
           cache: npm`;
-      runCommand = "npx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif";
+      runCommand = "npx --yes @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif";
       break;
   }
 
@@ -88,7 +88,7 @@ ${setupSteps}
 
       - name: Upload Security SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('repodoctor.sarif') != ''
         with:
           sarif_file: repodoctor.sarif
 `;

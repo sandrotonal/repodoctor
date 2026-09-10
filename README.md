@@ -21,7 +21,7 @@ RepoDoctor inspects your codebase locally in milliseconds. Your code **never lea
 
 ---
 
-## What's New in v0.5.2 (Enterprise Hardening)
+## What's New in v0.6.0 (Enterprise Hardening)
 
 - **Zero Raw Secret Leakage**: API keys and tokens are securely masked in memory at detection time (`AKIA****PLE`). Raw secrets are never saved, printed, or leaked into JSON, SARIF, or HTML outputs.
 - **Shannon Entropy Confidence Scoring**: Eliminates false positives by evaluating mathematical entropy ($H = -\sum p \log_2 p$) for high-entropy tokens, while suppressing dummy & documentation keys (`AKIAIOSFODNN7EXAMPLE`, `sk_test_...`).

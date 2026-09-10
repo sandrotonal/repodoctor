@@ -24,11 +24,23 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Verify TypeScript
+        run: npm run typecheck
+
+      - name: Run Test Suite
+        run: npm test
+
+      - name: Build Production Bundle
+        run: npm run build
+
       - name: Run RepoDoctor Diagnostic Scan
-        run: npx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif
+        run: node dist/index.js --ci --sarif repodoctor.sarif --markdown $GITHUB_STEP_SUMMARY
 
       - name: Upload Security SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('repodoctor.sarif') != ''
         with:
           sarif_file: repodoctor.sarif

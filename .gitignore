@@ -2,6 +2,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 *.log
+*.sarif
+*.html
 .env
 .env.*
 .DS_Store
