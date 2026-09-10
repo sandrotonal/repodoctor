@@ -18,11 +18,21 @@ export interface FixOptions {
 }
 
 export function isPathSafe(root: string, targetPath: string): boolean {
-  const resolvedRoot = path.resolve(root).replace(/\\/g, "/");
-  const resolvedTarget = path.isAbsolute(targetPath)
-    ? path.resolve(targetPath).replace(/\\/g, "/")
-    : path.resolve(resolvedRoot, targetPath).replace(/\\/g, "/");
-  return resolvedTarget.startsWith(resolvedRoot + "/") || resolvedTarget === resolvedRoot;
+  try {
+    if (typeof root !== "string" || typeof targetPath !== "string") return false;
+    if (targetPath.includes("\0") || root.includes("\0")) return false;
+
+    const normalizedTarget = targetPath.split(/[\\/]/).join("/");
+    const resolvedRoot = path.resolve(root);
+    const resolvedTarget = path.isAbsolute(targetPath) || path.isAbsolute(normalizedTarget)
+      ? path.resolve(targetPath)
+      : path.resolve(resolvedRoot, normalizedTarget);
+
+    const rel = path.relative(resolvedRoot, resolvedTarget);
+    return !rel.startsWith("..") && !path.isAbsolute(rel);
+  } catch {
+    return false;
+  }
 }
 
 export async function isSymlinkSafe(targetPath: string): Promise<boolean> {
