@@ -30,6 +30,10 @@ export function generateMarkdownReport(result: ScanResult): string {
   const isPassed = counts.critical === 0;
   const statusText = isPassed ? "✅ **Passed**" : "❌ **Action Required**";
   const scorePercent = `${result.health.score}/100 (${result.health.grade.toUpperCase()})`;
+  const secScore = result.health.securityScore ?? result.health.score;
+  const secGrade = (result.health.securityGrade ?? result.health.grade).toUpperCase();
+  const relScore = result.health.reliabilityScore ?? result.health.score;
+  const relGrade = (result.health.reliabilityGrade ?? result.health.grade).toUpperCase();
 
   const lines: string[] = [
     "# 🩺 RepoDoctor Diagnostic Report",
@@ -38,12 +42,22 @@ export function generateMarkdownReport(result: ScanResult): string {
     "| :--- | :--- |",
     `| **Status** | ${statusText} |`,
     `| **Health Score** | ${scorePercent} |`,
+    `| **Security Score** | ${secScore}/100 (${secGrade}) |`,
+    `| **Reliability Score** | ${relScore}/100 (${relGrade}) |`,
     `| **Critical Issues** | ${counts.critical} |`,
     `| **Warnings** | ${counts.warning} |`,
     `| **Suggestions / Info** | ${counts.info} |`,
     `| **Passing Checks** | ${counts.success} |`,
-    "",
   ];
+
+  if (result.coverage) {
+    lines.push(
+      `| **Files Scanned** | ${result.coverage.filesScanned} (${result.coverage.filesSkipped} skipped) |`,
+      `| **Scan Duration** | ${result.coverage.durationMs}ms |`,
+    );
+  }
+
+  lines.push("");
 
   if (issues.length > 0) {
     lines.push("### ⚠️ Findings & Recommendations", "");

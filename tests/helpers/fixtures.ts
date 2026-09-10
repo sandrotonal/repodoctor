@@ -19,5 +19,9 @@ export async function makeFixture(files: Record<string, FixtureEntry>): Promise<
 }
 
 export async function removeFixture(root: string): Promise<void> {
-  await rm(root, { recursive: true, force: true });
+  try {
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  } catch {
+    // Ignore cleanup errors on Windows
+  }
 }

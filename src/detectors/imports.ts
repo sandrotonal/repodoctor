@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import ts from "typescript";
 
 export interface ImportScan {
   packagesUsed: Set<string>;
@@ -96,7 +97,7 @@ function outsideStringRegions(text: string): Uint8Array {
   return outside;
 }
 
-function extractSpecifiers(text: string): string[] {
+function extractSpecifiersRegex(text: string): string[] {
   const outside = outsideStringRegions(text);
   const specifiers: string[] = [];
   for (const pattern of SPECIFIER_PATTERNS) {
@@ -109,6 +110,72 @@ function extractSpecifiers(text: string): string[] {
     }
   }
   return specifiers;
+}
+
+export function extractSpecifiers(text: string, filePath: string = "source.ts"): string[] {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".vue" || ext === ".svelte") {
+    return extractSpecifiersRegex(text);
+  }
+
+  const specifiers: string[] = [];
+  try {
+    const scriptKind =
+      ext === ".tsx"
+        ? ts.ScriptKind.TSX
+        : ext === ".jsx"
+          ? ts.ScriptKind.JSX
+          : ext === ".js" || ext === ".mjs" || ext === ".cjs"
+            ? ts.ScriptKind.JS
+            : ts.ScriptKind.TS;
+
+    const sourceFile = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, false, scriptKind);
+
+    function visit(node: ts.Node) {
+      // 1. Static import: import ... from "pkg";
+      if (ts.isImportDeclaration(node)) {
+        if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+          specifiers.push(node.moduleSpecifier.text);
+        }
+      }
+      // 2. Export re-export: export ... from "pkg";
+      else if (ts.isExportDeclaration(node)) {
+        if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+          specifiers.push(node.moduleSpecifier.text);
+        }
+      }
+      // 3. Dynamic import or require: import("pkg") or require("pkg")
+      else if (ts.isCallExpression(node)) {
+        const expr = node.expression;
+        if (
+          (expr.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(expr) && expr.text === "require")) &&
+          node.arguments.length > 0
+        ) {
+          const arg = node.arguments[0]!;
+          if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
+            specifiers.push(arg.text);
+          }
+        }
+      }
+      // 4. Import equals: import x = require("pkg");
+      else if (ts.isImportEqualsDeclaration(node)) {
+        if (
+          ts.isExternalModuleReference(node.moduleReference) &&
+          node.moduleReference.expression &&
+          ts.isStringLiteral(node.moduleReference.expression)
+        ) {
+          specifiers.push(node.moduleReference.expression.text);
+        }
+      }
+
+      ts.forEachChild(node, visit);
+    }
+
+    visit(sourceFile);
+    return specifiers;
+  } catch {
+    return extractSpecifiersRegex(text);
+  }
 }
 
 export function packageNameFromSpecifier(specifier: string): string | null {
@@ -148,7 +215,7 @@ export async function scanImports(root: string): Promise<ImportScan> {
       continue;
     }
 
-    for (const specifier of extractSpecifiers(text)) {
+    for (const specifier of extractSpecifiers(text, file)) {
       const packageName = packageNameFromSpecifier(specifier);
       if (packageName === null) {
         continue;

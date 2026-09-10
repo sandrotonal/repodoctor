@@ -1,14 +1,20 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import type { PackageJsonData } from "../core/types.js";
+import type { DiagnosticConfidence, PackageJsonData } from "../core/types.js";
+
+export type SecretConfidence = DiagnosticConfidence;
 
 export interface SecretFinding {
   ruleId: string;
   ruleName: string;
   file: string;
   line: number;
+  column?: number;
   maskedMatch: string;
   severity: "critical" | "warning";
+  confidence: SecretConfidence;
+  suppressed: boolean;
+  reason?: string;
 }
 
 export interface DangerousScriptFinding {
@@ -18,9 +24,110 @@ export interface DangerousScriptFinding {
   severity: "critical" | "warning";
 }
 
+export interface SecurityScanOptions {
+  maxFiles?: number;
+  maxFileSize?: number;
+}
+
 export interface SecurityScan {
   secretFindings: SecretFinding[];
   dangerousScripts: DangerousScriptFinding[];
+  filesDiscovered: number;
+  filesScanned: number;
+  filesSkipped: number;
+  scanLimitReached: boolean;
+}
+
+export const KNOWN_DUMMY_CREDENTIALS = new Set([
+  "AKIAIOSFODNN7EXAMPLE",
+  "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+  "sk_test_51Abcdefghijklmnopqrstuvwxyz",
+  "sk-test-1234567890abcdefghijklmnopqrstuvwxyz",
+  "example-secret",
+  "test-secret",
+  "dummy-key",
+  "dummy-token",
+  "dummy_token",
+  "your-api-key-here",
+  "placeholder-api-key",
+  "1234567890abcdef",
+]);
+
+export function calculateShannonEntropy(str: string): number {
+  if (!str || str.length === 0) return 0;
+  const frequencies = new Map<string, number>();
+  for (const char of str) {
+    frequencies.set(char, (frequencies.get(char) ?? 0) + 1);
+  }
+  let entropy = 0;
+  const len = str.length;
+  for (const count of frequencies.values()) {
+    const p = count / len;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+
+export function evaluateConfidence(
+  _ruleId: string,
+  matchedSecret: string,
+  filePath: string,
+): { confidence: SecretConfidence; suppressed: boolean; reason: string } {
+  const lowerMatch = matchedSecret.toLowerCase();
+
+  // Check known dummy credentials & example patterns
+  if (
+    KNOWN_DUMMY_CREDENTIALS.has(matchedSecret) ||
+    lowerMatch.includes("dummy") ||
+    lowerMatch.includes("example") ||
+    lowerMatch.includes("placeholder") ||
+    lowerMatch.includes("your-key") ||
+    lowerMatch.includes("your_key") ||
+    lowerMatch.includes("your-token") ||
+    lowerMatch.includes("your_token") ||
+    lowerMatch.startsWith("sk_test_") ||
+    lowerMatch.endsWith("example")
+  ) {
+    return {
+      confidence: "suppressed",
+      suppressed: true,
+      reason: "Known provider example or placeholder credential",
+    };
+  }
+
+  // Check file path context (docs, examples, samples)
+  const normPath = filePath.toLowerCase().replace(/\\/g, "/");
+  const isDocOrExample =
+    normPath.includes("example") ||
+    normPath.includes("sample") ||
+    normPath.includes("doc/") ||
+    normPath.includes("docs/") ||
+    normPath.endsWith(".md");
+
+  const entropy = calculateShannonEntropy(matchedSecret);
+
+  if (isDocOrExample) {
+    return {
+      confidence: "medium",
+      suppressed: false,
+      reason: "Matched in documentation or example file",
+    };
+  }
+
+  // Low entropy check (repeated characters or predictable sequence)
+  if (entropy < 2.6) {
+    return {
+      confidence: "low",
+      suppressed: false,
+      reason: "Low character entropy suggests generated placeholder or template",
+    };
+  }
+
+  return {
+    confidence: "high",
+    suppressed: false,
+    reason: "Valid provider prefix, pattern match, and high character entropy",
+  };
 }
 
 const SKIP_DIRS = new Set([
@@ -64,6 +171,8 @@ const SCANNABLE_EXTENSIONS = new Set([
   ".yaml",
   ".yml",
   ".toml",
+  ".ini",
+  ".xml",
   ".env",
   ".env.local",
   ".env.production",
@@ -72,6 +181,13 @@ const SCANNABLE_EXTENSIONS = new Set([
   ".py",
   ".sh",
   ".bash",
+  ".zsh",
+  ".ps1",
+  ".pem",
+  ".key",
+  ".cer",
+  ".p12",
+  ".pfx",
   ".md",
   ".html",
   ".sql",
@@ -205,12 +321,22 @@ export function maskSecret(secret: string): string {
   return `${prefix}****${suffix}`;
 }
 
-async function walkSourceFiles(root: string): Promise<string[]> {
+interface WalkResult {
+  files: string[];
+  filesDiscovered: number;
+  filesSkipped: number;
+  scanLimitReached: boolean;
+}
+
+async function walkSourceFiles(root: string, maxFiles: number): Promise<WalkResult> {
   const results: string[] = [];
-  let count = 0;
+  let filesDiscovered = 0;
+  let filesSkipped = 0;
+  let scanLimitReached = false;
 
   async function visit(dir: string): Promise<void> {
-    if (count >= MAX_FILES) {
+    if (results.length >= maxFiles) {
+      scanLimitReached = true;
       return;
     }
     let entries;
@@ -220,8 +346,13 @@ async function walkSourceFiles(root: string): Promise<string[]> {
       return;
     }
     for (const entry of entries) {
-      if (count >= MAX_FILES) {
-        return;
+      if (results.length >= maxFiles) {
+        scanLimitReached = true;
+        if (entry.isFile()) {
+          filesDiscovered += 1;
+          filesSkipped += 1;
+        }
+        continue;
       }
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
@@ -229,6 +360,7 @@ async function walkSourceFiles(root: string): Promise<string[]> {
           await visit(full);
         }
       } else if (entry.isFile()) {
+        filesDiscovered += 1;
         const name = entry.name.toLowerCase();
         if (
           name.endsWith(".test.ts") ||
@@ -236,6 +368,7 @@ async function walkSourceFiles(root: string): Promise<string[]> {
           name.endsWith(".test.js") ||
           name.endsWith(".spec.js")
         ) {
+          filesSkipped += 1;
           continue;
         }
         const ext = path.extname(entry.name).toLowerCase();
@@ -244,19 +377,26 @@ async function walkSourceFiles(root: string): Promise<string[]> {
           (SCANNABLE_EXTENSIONS.has(ext) || entry.name.startsWith(".env"))
         ) {
           results.push(full);
-          count += 1;
+        } else {
+          filesSkipped += 1;
         }
       }
     }
   }
 
   await visit(root);
-  return results;
+  return { files: results, filesDiscovered, filesSkipped, scanLimitReached };
 }
 
-export async function scanSecrets(root: string, packageJson: PackageJsonData | null): Promise<SecurityScan> {
+export async function scanSecrets(
+  root: string,
+  packageJson: PackageJsonData | null,
+  options: SecurityScanOptions = {},
+): Promise<SecurityScan> {
   const secretFindings: SecretFinding[] = [];
   const dangerousScripts: DangerousScriptFinding[] = [];
+  const maxFiles = options.maxFiles ?? MAX_FILES;
+  const maxFileSize = options.maxFileSize ?? MAX_FILE_BYTES;
 
   // 1. Scan scripts in package.json
   if (packageJson?.scripts) {
@@ -276,17 +416,22 @@ export async function scanSecrets(root: string, packageJson: PackageJsonData | n
   }
 
   // 2. Scan source files
-  const files = await walkSourceFiles(root);
+  const walk = await walkSourceFiles(root, maxFiles);
+  let filesScanned = 0;
+  let skippedBytes = 0;
 
-  for (const file of files) {
+  for (const file of walk.files) {
     let text: string;
     try {
       const buffer = await readFile(file);
-      if (buffer.byteLength > MAX_FILE_BYTES) {
+      if (buffer.byteLength > maxFileSize) {
+        skippedBytes += 1;
         continue;
       }
       text = buffer.toString("utf8");
+      filesScanned += 1;
     } catch {
+      skippedBytes += 1;
       continue;
     }
 
@@ -302,27 +447,32 @@ export async function scanSecrets(root: string, packageJson: PackageJsonData | n
         let match: RegExpExecArray | null;
         while ((match = regex.exec(line)) !== null) {
           const matchedSecret = match[1] || match[0];
-          // Skip placeholders
-          if (
-            matchedSecret.includes("dummy") ||
-            matchedSecret.includes("example") ||
-            matchedSecret.includes("placeholder") ||
-            matchedSecret.includes("your-key")
-          ) {
-            continue;
-          }
+          const column = match.index + 1;
+          const evaluation = evaluateConfidence(rule.id, matchedSecret, relPath);
+
           secretFindings.push({
             ruleId: rule.id,
             ruleName: rule.name,
             file: relPath,
             line: lineIndex + 1,
+            column,
             maskedMatch: maskSecret(matchedSecret),
             severity: rule.severity,
+            confidence: evaluation.confidence,
+            suppressed: evaluation.suppressed,
+            reason: evaluation.reason,
           });
         }
       }
     }
   }
 
-  return { secretFindings, dangerousScripts };
+  return {
+    secretFindings,
+    dangerousScripts,
+    filesDiscovered: walk.filesDiscovered,
+    filesScanned,
+    filesSkipped: walk.filesSkipped + skippedBytes,
+    scanLimitReached: walk.scanLimitReached,
+  };
 }

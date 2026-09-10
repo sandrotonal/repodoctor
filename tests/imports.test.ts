@@ -68,6 +68,28 @@ describe("scanImports", () => {
       await removeFixture(root);
     }
   });
+
+  it("ignores imports inside code comments via AST", async () => {
+    const root = await makeFixture({
+      "src/commented.ts": `
+        // import "commented-pkg";
+        /*
+          const x = require("block-commented-pkg");
+        */
+        import { real } from "real-pkg";
+        export { foo } from "re-exported-pkg";
+      `,
+    });
+    try {
+      const result = await scanImports(root);
+      expect(result.packagesImported.has("commented-pkg")).toBe(false);
+      expect(result.packagesImported.has("block-commented-pkg")).toBe(false);
+      expect(result.packagesImported.has("real-pkg")).toBe(true);
+      expect(result.packagesImported.has("re-exported-pkg")).toBe(true);
+    } finally {
+      await removeFixture(root);
+    }
+  });
 });
 
 const noImports: ImportScan = { packagesUsed: new Set(), packagesImported: new Set() };

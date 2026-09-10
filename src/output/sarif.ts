@@ -70,14 +70,17 @@ export function generateSarifReport(scanResult: ScanResult, version: string = "0
       });
     }
 
-    // Check if ID contains file & line info (e.g. secret.aws-key:src/index.ts:12)
-    const segments = diag.id.split(":");
-    let fileUri: string | undefined;
-    let lineNum: number | undefined;
+    // Check if diag.location is present or fallback to ID segmentation
+    let fileUri = diag.location?.file;
+    let lineNum = diag.location?.line;
+    let columnNum = diag.location?.column;
 
-    if (segments.length >= 3) {
-      fileUri = segments[1];
-      lineNum = Number(segments[2]) || undefined;
+    if (!fileUri) {
+      const segments = diag.id.split(":");
+      if (segments.length >= 3) {
+        fileUri = segments[1];
+        lineNum = Number(segments[2]) || undefined;
+      }
     }
 
     const messageText = [diag.title, diag.message, diag.recommendation ? `Fix: ${diag.recommendation}` : null]
@@ -94,8 +97,15 @@ export function generateSarifReport(scanResult: ScanResult, version: string = "0
       resultItem.locations = [
         {
           physicalLocation: {
-            artifactLocation: { uri: fileUri },
-            ...(lineNum ? { region: { startLine: lineNum } } : {}),
+            artifactLocation: { uri: fileUri.replace(/\\/g, "/") },
+            ...(lineNum
+              ? {
+                  region: {
+                    startLine: lineNum,
+                    ...(columnNum ? { startColumn: columnNum } : {}),
+                  },
+                }
+              : {}),
           },
         },
       ];

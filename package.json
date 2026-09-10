@@ -1,6 +1,6 @@
 {
   "name": "@gucluyumhe/repodoctor",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Diagnose your project health, secret leaks, and misconfigurations before you waste time debugging.",
   "type": "module",
   "license": "MIT",
@@ -48,7 +48,8 @@
   "dependencies": {
     "chalk": "^5.4.1",
     "commander": "^12.1.0",
-    "semver": "^7.8.5"
+    "semver": "^7.8.5",
+    "typescript": "^5.7.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

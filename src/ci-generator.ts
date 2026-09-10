@@ -1,5 +1,7 @@
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { PackageManager } from "./core/types.js";
+import { detectPackageManager } from "./detectors/package-manager.js";
 
 export interface CiInstallResult {
   success: boolean;
@@ -9,9 +11,57 @@ export interface CiInstallResult {
 
 export interface CiInstallOptions {
   force?: boolean;
+  packageManager?: PackageManager | "auto";
 }
 
-const REPO_DOCTOR_WORKFLOW = `name: RepoDoctor Health & Security Scan
+export function generateWorkflowContent(pm: PackageManager): string {
+  let setupSteps = "";
+  let runCommand = "";
+
+  switch (pm) {
+    case "pnpm":
+      setupSteps = `      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm`;
+      runCommand = "pnpm dlx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif";
+      break;
+
+    case "yarn":
+      setupSteps = `      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn`;
+      runCommand = "yarn dlx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif";
+      break;
+
+    case "bun":
+      setupSteps = `      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest`;
+      runCommand = "bunx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif";
+      break;
+
+    case "npm":
+    default:
+      setupSteps = `      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm`;
+      runCommand = "npx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif";
+      break;
+  }
+
+  return `name: RepoDoctor Health & Security Scan
 
 on:
   push:
@@ -31,14 +81,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+${setupSteps}
 
       - name: Run RepoDoctor Diagnostic Scan
-        run: npx @gucluyumhe/repodoctor --ci --sarif repodoctor.sarif
+        run: ${runCommand}
 
       - name: Upload Security SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
@@ -46,8 +92,12 @@ jobs:
         with:
           sarif_file: repodoctor.sarif
 `;
+}
 
-export async function installCiWorkflow(root: string = process.cwd(), options: CiInstallOptions = {}): Promise<CiInstallResult> {
+export async function installCiWorkflow(
+  root: string = process.cwd(),
+  options: CiInstallOptions = {},
+): Promise<CiInstallResult> {
   const workflowsDir = path.join(root, ".github", "workflows");
 
   try {
@@ -66,12 +116,24 @@ export async function installCiWorkflow(root: string = process.cwd(), options: C
       }
     }
 
+    let pm: PackageManager = "npm";
+    if (options.packageManager && options.packageManager !== "auto") {
+      pm = options.packageManager;
+    } else {
+      const detected = await detectPackageManager(root);
+      if (detected.manager) {
+        pm = detected.manager;
+      }
+    }
+
+    const workflowContent = generateWorkflowContent(pm);
+
     await mkdir(workflowsDir, { recursive: true });
-    await writeFile(targetFile, REPO_DOCTOR_WORKFLOW, "utf8");
+    await writeFile(targetFile, workflowContent, "utf8");
 
     return {
       success: true,
-      message: "Successfully generated GitHub Actions workflow at .github/workflows/repodoctor.yml",
+      message: `Successfully generated GitHub Actions workflow (${pm}) at .github/workflows/repodoctor.yml`,
       workflowPath: targetFile,
     };
   } catch {

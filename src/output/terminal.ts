@@ -28,7 +28,21 @@ function formatPlainScan(result: ScanResult): string {
     }
   }
 
-  lines.push("", `Health score: ${renderHealth(result.health.score, result.health.grade)}`, "Scan completed.");
+  const secScore = result.health.securityScore;
+  const relScore = result.health.reliabilityScore;
+  const dualSummary =
+    secScore !== undefined && relScore !== undefined
+      ? ` (Security: ${secScore}/100, Reliability: ${relScore}/100)`
+      : "";
+  lines.push("", `Health score: ${renderHealth(result.health.score, result.health.grade)}${dualSummary}`);
+  if (result.coverage) {
+    lines.push(
+      chalk.dim(
+        `Coverage: ${result.coverage.filesScanned} files scanned (${result.coverage.filesSkipped} skipped) in ${result.coverage.durationMs}ms`,
+      ),
+    );
+  }
+  lines.push("Scan completed.");
   return lines.join("\n");
 }
 
@@ -128,24 +142,26 @@ function renderHeader(inner: number): string {
 }
 
 function renderCategoryPanel(category: string, diagnostics: Diagnostic[], inner: number): string {
-  const color = SEVERITY_COLORS[worstSeverity(diagnostics)];
-  const body: string[] = [];
+  const worst = worstSeverity(diagnostics);
+  const color = SEVERITY_COLORS[worst];
 
+  const dashes = Math.max(2, inner - 3 - visibleLength(category));
+
+  const body: string[] = [];
   for (const diagnostic of diagnostics) {
-    body.push(`${SEVERITY_LABELS[diagnostic.severity]} ${diagnostic.title}`);
+    const label = SEVERITY_LABELS[diagnostic.severity];
+    const itemColor = SEVERITY_COLORS[diagnostic.severity];
+    const head = `${itemColor(label)} ${diagnostic.title}`;
+
+    body.push(...wordWrap(head, inner - 2));
+
     if (diagnostic.message) {
-      for (const wrapped of wordWrap(diagnostic.message, inner - 8)) {
-        body.push(`  ${chalk.dim(wrapped)}`);
-      }
+      body.push(...wordWrap(chalk.dim(diagnostic.message), inner - 2).map((l) => `  ${l}`));
     }
     if (diagnostic.recommendation) {
-      for (const wrapped of wordWrap(diagnostic.recommendation, inner - 12)) {
-        body.push(`  -> ${chalk.dim(wrapped)}`);
-      }
+      body.push(...wordWrap(chalk.dim(`-> ${diagnostic.recommendation}`), inner - 2).map((l) => `  ${l}`));
     }
   }
-
-  const dashes = Math.max(0, inner - 3 - visibleLength(category));
 
   return [
     `${color("╭")}${color("─")} ${gradient(category, [0, 196, 255], [255, 106, 255])} ${color("─".repeat(dashes))}${color("╮")}`,
@@ -170,16 +186,31 @@ function renderHealthPanel(result: ScanResult, inner: number): string {
   }
   const summary = `${counts.critical} critical ${chalk.dim("·")} ${counts.warning} warning ${chalk.dim("·")} ${counts.info} info`;
 
-  return [
+  const lines = [
     `${chalk.cyan("╭")}${chalk.cyan("─")} ${title} ${chalk.cyan("─".repeat(dashes))}${chalk.cyan("╮")}`,
     `${chalk.cyan("│")} ${padAnsi(gradeColor(bar), inner - 2)} ${chalk.cyan("│")}`,
     `${chalk.cyan("│")} ${padAnsi(summary, inner - 2)} ${chalk.cyan("│")}`,
-    `${chalk.cyan("╰")}${chalk.cyan("─".repeat(inner))}${chalk.cyan("╯")}`,
-    "",
-  ].join("\n");
+  ];
+
+  const secScore = result.health.securityScore;
+  const relScore = result.health.reliabilityScore;
+  if (secScore !== undefined && relScore !== undefined) {
+    const secColor = healthColor(result.health.securityGrade ?? result.health.grade);
+    const relColor = healthColor(result.health.reliabilityGrade ?? result.health.grade);
+    const dualSummary = `Security: ${secColor(`${secScore}/100`)} ${chalk.dim("·")} Reliability: ${relColor(`${relScore}/100`)}`;
+    lines.push(`${chalk.cyan("│")} ${padAnsi(dualSummary, inner - 2)} ${chalk.cyan("│")}`);
+  }
+
+  if (result.coverage) {
+    const cov = chalk.dim(`Coverage: ${result.coverage.filesScanned} files scanned (${result.coverage.filesSkipped} skipped) in ${result.coverage.durationMs}ms`);
+    lines.push(`${chalk.cyan("│")} ${padAnsi(cov, inner - 2)} ${chalk.cyan("│")}`);
+  }
+
+  lines.push(`${chalk.cyan("╰")}${chalk.cyan("─".repeat(inner))}${chalk.cyan("╯")}`, "");
+  return lines.join("\n");
 }
 
-function healthColor(grade: HealthGrade): (text: string) => string {
+function healthColor(grade?: HealthGrade): (text: string) => string {
   switch (grade) {
     case "excellent":
     case "good":
@@ -190,6 +221,8 @@ function healthColor(grade: HealthGrade): (text: string) => string {
       return chalk.magenta;
     case "critical":
       return chalk.red;
+    default:
+      return chalk.green;
   }
 }
 

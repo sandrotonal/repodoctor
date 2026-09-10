@@ -10,24 +10,60 @@ function diagnostic(severity: Diagnostic["severity"]): Diagnostic {
 
 describe("computeHealthScore", () => {
   it("scores 100 on a clean scan", () => {
-    expect(computeHealthScore([])).toEqual({ score: 100, grade: "excellent" });
+    const health = computeHealthScore([]);
+    expect(health.score).toBe(100);
+    expect(health.overallScore).toBe(100);
+    expect(health.grade).toBe("excellent");
+    expect(health.securityScore).toBe(100);
+    expect(health.securityGrade).toBe("excellent");
+    expect(health.reliabilityScore).toBe(100);
+    expect(health.reliabilityGrade).toBe("excellent");
   });
 
   it("does not penalize informational diagnostics", () => {
-    expect(computeHealthScore([diagnostic("info"), diagnostic("success")])).toEqual({ score: 100, grade: "excellent" });
+    const health = computeHealthScore([diagnostic("info"), diagnostic("success")]);
+    expect(health.score).toBe(100);
+    expect(health.grade).toBe("excellent");
   });
 
-  it("drops 30 per critical and 8 per warning", () => {
-    expect(computeHealthScore([diagnostic("critical")])).toEqual({ score: 70, grade: "fair" });
-    expect(computeHealthScore([diagnostic("warning")])).toEqual({ score: 92, grade: "excellent" });
-    expect(computeHealthScore([diagnostic("critical"), diagnostic("warning")])).toEqual({ score: 62, grade: "fair" });
+  it("drops 30 per critical and 8 per warning for overall score", () => {
+    expect(computeHealthScore([diagnostic("critical")]).score).toBe(70);
+    expect(computeHealthScore([diagnostic("warning")]).score).toBe(92);
+    expect(computeHealthScore([diagnostic("critical"), diagnostic("warning")]).score).toBe(62);
+  });
+
+  it("calculates decoupled security vs reliability scores", () => {
+    const secIssue: Diagnostic = {
+      id: "security.secret-exposed",
+      severity: "critical",
+      title: "Secret exposed",
+      category: "security",
+    };
+    const relIssue: Diagnostic = {
+      id: "node.deprecated-version",
+      severity: "warning",
+      title: "Node deprecated",
+      category: "reliability",
+    };
+
+    const health = computeHealthScore([secIssue, relIssue]);
+    // Security score penalizes secIssue (100 - 35 = 65)
+    expect(health.securityScore).toBe(65);
+    // Reliability score penalizes relIssue (100 - 8 = 92)
+    expect(health.reliabilityScore).toBe(92);
+    // Overall score penalizes both (100 - 30 - 8 = 62)
+    expect(health.overallScore).toBe(62);
   });
 
   it("clamps at zero", () => {
-    expect(computeHealthScore([diagnostic("critical"), diagnostic("critical"), diagnostic("critical"), diagnostic("critical")])).toEqual({
-      score: 0,
-      grade: "critical",
-    });
+    const health = computeHealthScore([
+      diagnostic("critical"),
+      diagnostic("critical"),
+      diagnostic("critical"),
+      diagnostic("critical"),
+    ]);
+    expect(health.score).toBe(0);
+    expect(health.grade).toBe("critical");
   });
 });
 

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { Diagnostic, HealthScore, PackageJsonResult, PackageManagerDetection, ProjectFacts, ScanResult } from "./types.js";
+import type { Diagnostic, HealthScore, PackageJsonResult, PackageManagerDetection, ProjectFacts, ScanCoverage, ScanResult } from "./types.js";
 import type { NpmLockResult } from "../detectors/lock-file.js";
 import type { EnvState } from "../detectors/env.js";
 import type { GitState } from "../detectors/git.js";
@@ -40,12 +40,23 @@ import { checkWorkspaces } from "../checks/workspaces.js";
 import { checkPackages } from "../checks/packages.js";
 import { checkCi } from "../checks/ci.js";
 import { computeHealthScore } from "./score.js";
+import type { IgnoreConfig } from "./ignore.js";
+import { isDiagnosticIgnored, loadIgnoreConfig } from "./ignore.js";
+import type { BaselineData } from "./baseline.js";
+import { filterBaselineDiagnostics, generateFingerprint } from "./baseline.js";
 
 export interface ScanOptions {
   onProgress?: (label: string) => void;
+  ignoreConfig?: IgnoreConfig;
+  ignoreFile?: string;
+  baseline?: BaselineData | null;
+  newOnly?: boolean;
+  maxFiles?: number;
+  maxFileSize?: number;
 }
 
 export async function scanProject(root: string, options: ScanOptions = {}): Promise<ScanResult> {
+  const startTime = performance.now();
   const absoluteRoot = resolve(root);
   const { onProgress } = options;
 
@@ -87,7 +98,14 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
   const git = files.gitRepo ? await track(readGitState(absoluteRoot), "Inspecting git state", onProgress) : null;
   const ports = await track(detectPorts(absoluteRoot, packageJson.content), "Checking configured ports", onProgress);
   const imports = await track(scanImports(absoluteRoot), "Scanning source imports", onProgress);
-  const security = await track(scanSecrets(absoluteRoot, packageJson.content), "Scanning for secrets and security risks", onProgress);
+  const security = await track(
+    scanSecrets(absoluteRoot, packageJson.content, {
+      maxFiles: options.maxFiles,
+      maxFileSize: options.maxFileSize,
+    }),
+    "Scanning for secrets and security risks",
+    onProgress,
+  );
   const configs = await track(detectConfigs(absoluteRoot), "Checking TypeScript and tooling configs", onProgress);
   const frameworks = await track(detectFrameworks(absoluteRoot, packageJson.content), "Analyzing web frameworks", onProgress);
   const workspaces = await track(detectWorkspaces(absoluteRoot, packageJson.content), "Scanning monorepo workspaces", onProgress);
@@ -95,7 +113,7 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
   const ci = await track(detectCiWorkflows(absoluteRoot), "Scanning CI/CD workflows", onProgress);
 
   onProgress?.("Evaluating diagnostics");
-  const diagnostics = await buildDiagnostics({
+  let diagnostics = await buildDiagnostics({
     root: absoluteRoot,
     files,
     packageManager,
@@ -112,7 +130,50 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
     packages,
     ci,
   });
+
+  // 1. Apply .repodoctorignore
+  const ignoreConfig =
+    options.ignoreConfig ??
+    (await loadIgnoreConfig(options.ignoreFile ? resolve(options.ignoreFile) : absoluteRoot));
+  if (ignoreConfig.rules.length > 0) {
+    diagnostics = diagnostics.filter((d) => {
+      const filePath = d.location?.file ?? "";
+      return !isDiagnosticIgnored(ignoreConfig, filePath, d.id);
+    });
+  }
+
+  // 2. Assign deterministic fingerprints
+  for (const d of diagnostics) {
+    if (!d.fingerprint) {
+      d.fingerprint = generateFingerprint(d);
+    }
+  }
+
+  // 3. Apply baseline if present
+  if (options.baseline) {
+    const { newFindings, baselineMatchedCount } = filterBaselineDiagnostics(diagnostics, options.baseline);
+    if (options.newOnly) {
+      diagnostics = newFindings;
+    }
+    if (baselineMatchedCount > 0) {
+      diagnostics.push({
+        id: "baseline.suppressed",
+        severity: "info",
+        title: "Baseline active",
+        message: `${baselineMatchedCount} known baseline issue(s) suppressed.`,
+      });
+    }
+  }
+
   const health = computeHealthScore(diagnostics);
+  const durationMs = Math.round(performance.now() - startTime);
+  const coverage: ScanCoverage = {
+    filesDiscovered: security.filesDiscovered ?? 0,
+    filesScanned: security.filesScanned ?? 0,
+    filesSkipped: security.filesSkipped ?? 0,
+    scanLimitReached: !!security.scanLimitReached,
+    durationMs,
+  };
 
   return {
     root: absoluteRoot,
@@ -121,6 +182,7 @@ export async function scanProject(root: string, options: ScanOptions = {}): Prom
     packageJson,
     diagnostics,
     health,
+    coverage,
   };
 }
 

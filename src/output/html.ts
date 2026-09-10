@@ -307,10 +307,38 @@ export function generateHtmlReport(result: ScanResult): string {
       <div class="header-left">
         <h1>RepoDoctor Diagnostic Report</h1>
         <p>Target: <code>${escapeHtml(result.packageJson.content?.name ? `${result.packageJson.content.name} (${result.root})` : result.root)}</code></p>
+        ${
+          result.coverage
+            ? `<p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-dim);">
+                Coverage: <strong>${result.coverage.filesScanned}</strong> files scanned (${result.coverage.filesSkipped} skipped) in <strong>${result.coverage.durationMs}ms</strong>
+              </p>`
+            : ""
+        }
       </div>
-      <div class="health-gauge">
-        <div class="health-score">${result.health.score}</div>
-        <div class="health-grade">${escapeHtml(result.health.grade)}</div>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <div class="health-gauge">
+          <div class="health-score">${result.health.score}</div>
+          <div class="health-grade">${escapeHtml(result.health.grade)}</div>
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.2rem;">OVERALL</div>
+        </div>
+        <div class="health-gauge">
+          <div class="health-score" style="color: ${gradeColors[result.health.securityGrade ?? result.health.grade] ?? "#10b981"};">
+            ${result.health.securityScore ?? result.health.score}
+          </div>
+          <div class="health-grade" style="color: ${gradeColors[result.health.securityGrade ?? result.health.grade] ?? "#10b981"};">
+            ${escapeHtml(result.health.securityGrade ?? result.health.grade)}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.2rem;">SECURITY</div>
+        </div>
+        <div class="health-gauge">
+          <div class="health-score" style="color: ${gradeColors[result.health.reliabilityGrade ?? result.health.grade] ?? "#10b981"};">
+            ${result.health.reliabilityScore ?? result.health.score}
+          </div>
+          <div class="health-grade" style="color: ${gradeColors[result.health.reliabilityGrade ?? result.health.grade] ?? "#10b981"};">
+            ${escapeHtml(result.health.reliabilityGrade ?? result.health.grade)}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.2rem;">RELIABILITY</div>
+        </div>
       </div>
     </header>
 

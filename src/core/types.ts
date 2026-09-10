@@ -1,11 +1,26 @@
 export type Severity = "critical" | "warning" | "info" | "success";
 
+export type DiagnosticConfidence = "high" | "medium" | "low" | "suppressed";
+
+export interface DiagnosticLocation {
+  file: string;
+  line?: number;
+  column?: number;
+}
+
 export interface Diagnostic {
   id: string;
   severity: Severity;
   title: string;
   message?: string;
   recommendation?: string;
+  category?: "security" | "reliability";
+  confidence?: DiagnosticConfidence;
+  location?: DiagnosticLocation;
+  fingerprint?: string;
+  fixable?: boolean;
+  references?: string[];
+  suppressed?: boolean;
 }
 
 export type PackageManager = "npm" | "yarn" | "pnpm" | "bun";
@@ -45,9 +60,31 @@ export interface ProjectFacts {
 
 export type HealthGrade = "excellent" | "good" | "fair" | "poor" | "critical";
 
+export interface ScoreBreakdown {
+  criticalDeductions: number;
+  warningDeductions: number;
+  baseScore: number;
+}
+
 export interface HealthScore {
   score: number;
   grade: HealthGrade;
+  overallScore?: number;
+  securityScore?: number;
+  securityGrade?: HealthGrade;
+  reliabilityScore?: number;
+  reliabilityGrade?: HealthGrade;
+  breakdown?: ScoreBreakdown;
+  securityBreakdown?: ScoreBreakdown;
+  reliabilityBreakdown?: ScoreBreakdown;
+}
+
+export interface ScanCoverage {
+  filesDiscovered: number;
+  filesScanned: number;
+  filesSkipped: number;
+  scanLimitReached: boolean;
+  durationMs: number;
 }
 
 export interface ScanResult extends ProjectFacts {
@@ -56,4 +93,5 @@ export interface ScanResult extends ProjectFacts {
   packageJson: PackageJsonResult;
   diagnostics: Diagnostic[];
   health: HealthScore;
+  coverage?: ScanCoverage;
 }
